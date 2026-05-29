@@ -1,0 +1,25 @@
+version: '3.8'
+
+# Phase 1: web service only. LiteLLM container is added in Phase 2.
+# Postgres is managed by Coolify as a separate resource (see PROJECT_STATE.md / D-017).
+services:
+  gateway-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gateway-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      GATEWAY_ENCRYPTION_KEY: ${GATEWAY_ENCRYPTION_KEY}
+      LITELLM_INTERNAL_URL: ${LITELLM_INTERNAL_URL}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL}
