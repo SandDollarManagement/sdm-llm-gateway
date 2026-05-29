@@ -1,0 +1,443 @@
+# SDM LLM Gateway — CLAUDE.md
+
+> Operator: Preston Foreman
+> Project type: Standalone infrastructure service (not a business-facing app)
+> Status: Phase 0 complete; Phase 1 ready to start on the server with Claude Code
+> Last updated: 2026-05-29 (post-stack-correction)
+
+---
+
+## Purpose
+
+A single self-hosted gateway that all SDM Software apps (Ops Hub, Media Manager, Gmail Drive Manager, AI Social Posting App, motivational video pipeline, future apps) call instead of hitting LLM providers directly.
+
+It exists to solve five problems at once:
+
+1. **Use the Anthropic Agent SDK monthly credit first** (Max 20x = $200/mo) before any API-billed token is consumed.
+2. **Eliminate single-provider risk** by routing around outages to OpenAI, Google Gemini, xAI Grok, or OpenRouter automatically.
+3. **Centralize credential management** — one place to rotate API keys, OAuth tokens, and provider configs without touching app code.
+4. **Centralize observability** — all LLM calls across all apps logged to one place, with cost attribution per app and per agent.
+5. **Future-proof for productization** — when Ops Hub goes multi-tenant in ~12 months, the gateway flips one flag to API-only mode and all downstream apps keep working.
+
+---
+
+## What this service is NOT
+
+- Not a business-facing product. No end-user UI.
+- Not an agent harness. Apps still own their own agent logic. The gateway only handles the LLM call itself.
+- Not a replacement for the apps' own settings UIs. Apps still configure which alias their agents use; the gateway resolves that alias to a real provider call.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  SDM Apps (Ops Hub, Media Manager, Gmail Drive Mgr, etc.)   │
+│  - Call gateway via OpenAI-compatible HTTP API              │
+│  - Pass model alias (e.g. "default", "vision", "reasoning") │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Next.js Admin & Wrapper Layer (this repo, JavaScript)      │
+│  - Auth via NextAuth + Google OAuth + ADMIN_EMAILS          │
+│  - Alias → model resolution                                 │
+│  - Anthropic OAuth-first fallback logic                     │
+│  - Custom logging to Postgres                               │
+│  - Admin UI (settings, usage dashboard)                     │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ├─────────────────────────────────┐
+                         ▼                                 ▼
+┌────────────────────────────────────┐    ┌──────────────────────────────┐
+│  Postgres container (Coolify)      │    │  LiteLLM Proxy (Docker)      │
+│  - Providers, aliases, apps,       │    │  - Provider routing, retries,│
+│    call_logs, monthly_usage        │    │    fallback chains           │
+│  - sdm-llm-gateway-db              │    │  - Speaks OpenAI-compatible  │
+└────────────────────────────────────┘    └─────────────┬────────────────┘
+                                                        │
+                                ┌────────┬───────┬──────┴───┬────────────┐
+                                ▼        ▼       ▼          ▼            ▼
+                           Anthropic  OpenAI  Gemini    xAI Grok    OpenRouter
+                           (OAuth +
+                            API key)
+```
+
+---
+
+## Tech Stack
+
+| Layer            | Choice                                            | Reason                                                  |
+|------------------|---------------------------------------------------|---------------------------------------------------------|
+| Wrapper service  | Next.js 14 (App Router) + JavaScript              | Matches existing SDM stack (Ops Hub, storyquest, etc.)  |
+| Routing engine   | LiteLLM Proxy (Docker)                            | Mature multi-provider, fallback chains, OpenAI-compat   |
+| Database         | Postgres 16 container in Coolify, via `pg` driver | Matches existing SDM pattern (one Postgres per app)     |
+| Migrations       | Plain SQL files in `migrations/`, run by `node-pg-migrate` or a startup script | Operator preference: no ORM |
+| Deployment       | Coolify on Hetzner VPS (apps server)              | Same pattern as all other SDM services                  |
+| Auth (admin)     | NextAuth + GoogleProvider + `ADMIN_EMAILS` whitelist | Identical to Ops Hub `src/lib/auth.js` pattern        |
+| Auth (apps→GW)   | Bearer token per app, hashed at rest (SHA-256)    | Each app gets its own token; revocable independently    |
+| Observability    | Postgres tables + admin dashboard                 | Dark mode, matches existing SDM dashboard conventions   |
+
+LiteLLM runs as a Docker container alongside the Next.js service. The Next.js service is the public face; LiteLLM is internal-only (not exposed outside the Coolify network).
+
+---
+
+## Project Conventions (carry forward from existing SDM repos)
+
+- **500-line soft cap** per component file. Split if exceeding.
+- **Settings-driven, no hardcoded** models, prompts, API keys, providers, or aliases. Everything in the DB, editable from the admin UI.
+- **`workspace_id` column on every domain table** for future multi-tenancy, even though single-operator today.
+- **No partial code deliveries.** Every file written in full, every time.
+- **Naming consistency.** All env vars `SCREAMING_SNAKE_CASE`. All DB columns `snake_case`. All file names `kebab-case.js`. React components export as `PascalCase` named exports.
+- **Manual approval before automation.** Any new fallback chain or alias mapping requires explicit operator save in the admin UI; no auto-config from inference.
+- **Dark mode UI default**, modern, professional.
+- **Docker + internal storage** over third-party services.
+- **Dockerfile uses `npm ci`**, not `npm install`.
+- **JavaScript everywhere.** No `.ts` files. No `tsconfig.json`. Match Ops Hub.
+
+---
+
+## Repo Layout
+
+```
+sdm-llm-gateway/
+├── CLAUDE.md                          # this file
+├── DECISION_LOG.md                    # architectural decisions, D-001 onward
+├── OPEN_DECISIONS.md                  # unresolved questions
+├── PROJECT_STATE.md                   # current phase, last action, blockers
+├── README.md                          # human-facing setup
+├── docker-compose.yml                 # Next.js + LiteLLM + Postgres
+├── Dockerfile                         # Next.js wrapper service
+├── litellm-config.yaml                # LiteLLM provider config (mounted into container)
+├── .env.example
+├── package.json
+├── next.config.js
+├── tailwind.config.js
+├── jsconfig.json                      # path aliases (same as Ops Hub)
+├── src/
+│   ├── app/
+│   │   ├── (admin)/                   # admin UI, protected by NextAuth
+│   │   │   ├── providers/page.jsx     # add/edit/test provider credentials
+│   │   │   ├── aliases/page.jsx       # alias → provider chain mapping
+│   │   │   ├── apps/page.jsx          # registered apps + their bearer tokens
+│   │   │   ├── usage/page.jsx         # usage dashboard
+│   │   │   └── logs/page.jsx          # call log browser
+│   │   ├── api/
+│   │   │   ├── auth/[...nextauth]/route.js   # NextAuth handler
+│   │   │   ├── v1/chat/completions/route.js  # OpenAI-compatible endpoint
+│   │   │   ├── v1/messages/route.js          # Anthropic-compatible endpoint
+│   │   │   └── admin/                        # admin CRUD endpoints
+│   │   ├── login/page.jsx
+│   │   └── layout.jsx
+│   ├── lib/
+│   │   ├── auth.js                    # NextAuth config (mirrors Ops Hub pattern)
+│   │   ├── db.js                      # pg pool + query helpers (query, queryOne, dbInsertMany)
+│   │   ├── crypto.js                  # AES-256-GCM encrypt/decrypt with GATEWAY_ENCRYPTION_KEY
+│   │   ├── providers/                 # per-provider client wrappers
+│   │   │   ├── anthropic-oauth.js     # subscription OAuth path
+│   │   │   ├── anthropic-api.js       # API key path
+│   │   │   └── ... (other providers handled by LiteLLM directly)
+│   │   ├── routing/
+│   │   │   ├── resolve-alias.js       # alias → provider chain
+│   │   │   ├── execute-call.js        # try chain, log, return
+│   │   │   └── usage-tracker.js       # monthly credit budget tracking
+│   │   └── logging.js
+│   ├── middleware.js                  # NextAuth route protection
+│   └── components/
+│       └── ui/                        # shared admin UI components, dark mode
+└── migrations/                        # plain SQL migration files
+    ├── 001_init.sql
+    ├── 002_workspaces.sql
+    ├── 003_providers.sql
+    ├── 004_aliases.sql
+    ├── 005_apps.sql
+    ├── 006_call_logs.sql
+    └── 007_monthly_usage.sql
+```
+
+---
+
+## Database Schema (Postgres)
+
+Six tables. All have `workspace_id uuid REFERENCES workspaces(id)` for future multi-tenancy.
+
+- **`workspaces`** — `id uuid`, `name text`, `created_at timestamptz`. Single row seeded on first migration.
+- **`providers`** — `id uuid`, `workspace_id uuid`, `name text` (e.g. "anthropic"), `auth_type text` (`oauth` | `api_key`), `credentials text` (encrypted), `base_url text`, `enabled boolean`, `created_at timestamptz`, `updated_at timestamptz`.
+- **`aliases`** — `id uuid`, `workspace_id uuid`, `name text` (e.g. "default", "vision"), `description text`, `fallback_chain jsonb` (array of `{provider_id, model, priority}`), `created_at timestamptz`, `updated_at timestamptz`.
+- **`apps`** — `id uuid`, `workspace_id uuid`, `name text`, `token_hash text` (SHA-256), `default_alias text`, `monthly_budget_usd numeric`, `enabled boolean`, `created_at timestamptz`, `last_used_at timestamptz`.
+- **`call_logs`** — `id uuid`, `workspace_id uuid`, `app_id uuid`, `alias text`, `provider_id uuid`, `model text`, `auth_method text`, `request_tokens int`, `response_tokens int`, `cost_usd numeric`, `latency_ms int`, `status int`, `error text`, `created_at timestamptz`. Partition by month if it gets large.
+- **`monthly_usage`** — `id uuid`, `workspace_id uuid`, `provider_id uuid`, `auth_method text`, `month text` (`YYYY-MM`), `tokens_in bigint`, `tokens_out bigint`, `cost_usd numeric`, `updated_at timestamptz`. Rolled up from `call_logs` nightly.
+
+The `credentials` column is encrypted with AES-256-GCM using `GATEWAY_ENCRYPTION_KEY`. Never decrypt outside the routing code path. Never log decrypted credentials.
+
+---
+
+## Provider Configuration (V1 set)
+
+| Provider     | Auth methods                          | Why it's in V1                                   |
+|--------------|---------------------------------------|--------------------------------------------------|
+| Anthropic    | OAuth token (`sk-ant-oat01-...`) + API key (`sk-ant-api03-...`) | Primary; OAuth uses subscription credit first |
+| OpenAI       | API key                               | Strongest general fallback; broad model lineup   |
+| Google Gemini| API key                               | Independent infra (GCP); long context, multimodal|
+| xAI Grok     | API key                               | Independent infra; operator preference           |
+| OpenRouter   | API key                               | Meta-provider; access to DeepSeek, Mistral, Llama, etc. via one integration |
+
+**Optional / V1.1 candidates** (do not build into V1, but design schema to accept them):
+- Groq (fast inference for Llama/Qwen — not to be confused with Grok)
+- AWS Bedrock (if SDM ever runs on AWS)
+- Local Ollama for offline/dev fallback
+
+---
+
+## Routing Strategy: Alias-Based with Explicit Fallback Chains
+
+Apps never request a specific provider directly. They request a **model alias**, defined by the operator in the admin UI.
+
+**Default aliases shipped on first run:**
+
+| Alias            | Intent                                       | Default chain                                                                |
+|------------------|----------------------------------------------|------------------------------------------------------------------------------|
+| `default`        | Balanced general purpose                     | Anthropic Sonnet 4.6 (OAuth) → Anthropic Sonnet 4.6 (API key) → OpenAI GPT-5 → Gemini 2.5 Pro |
+| `reasoning`      | Hard reasoning, long context                 | Anthropic Opus 4.7 (OAuth) → Anthropic Opus 4.7 (API key) → OpenAI o-series → Gemini 2.5 Pro |
+| `fast`           | Cheap, high-volume, latency-sensitive        | Anthropic Haiku 4.5 (OAuth) → Haiku (API key) → GPT-4o-mini → Gemini Flash   |
+| `vision`         | Image understanding                          | Anthropic Sonnet 4.6 (OAuth) → GPT-4o → Gemini 2.5 Pro                       |
+| `bulk-classify`  | High-volume classification (cheap-first)     | OpenRouter (DeepSeek) → GPT-4o-mini → Haiku                                  |
+
+Apps may also accept a per-call alias override (e.g. AI Social Posting App's Image Analyst agent uses `vision`, its Copywriter agent uses `default`). The app's own settings UI controls which alias each agent uses; the gateway just resolves whatever alias arrives.
+
+**Fallback trigger conditions:**
+- HTTP 5xx or network error → next in chain
+- HTTP 429 with retry-after > 10s → next in chain
+- HTTP 401/403 → next in chain AND alert operator (credential issue)
+- Anthropic OAuth credit exhausted (HTTP 402 or specific error) → next in chain (typically the API key entry)
+- Timeout > 60s → next in chain
+
+Every fallback logged with reason. Operator can see fallback rate per alias in the usage dashboard.
+
+---
+
+## Anthropic OAuth Special Handling
+
+This is the one piece LiteLLM doesn't handle natively, so the wrapper layer owns it.
+
+**Setup (one-time, operator runs locally):**
+1. Operator runs `claude setup-token` on their workstation.
+2. Generated OAuth token (prefix `sk-ant-oat01-`) is pasted into admin UI under Providers → Anthropic → OAuth Credential.
+3. Token is encrypted and stored in `providers.credentials`.
+4. Token valid for one year. Admin UI surfaces an expiry warning at 30 days remaining.
+
+**Runtime behavior:**
+1. Request arrives for an alias whose chain starts with Anthropic OAuth.
+2. Wrapper checks `monthly_usage` for current month's OAuth spend against $200 cap (configurable per provider in admin UI).
+3. If under cap → call Anthropic via OAuth token. Update `monthly_usage`.
+4. If over cap OR call returns credit-exhausted error → fall back to next chain entry (typically Anthropic API key).
+5. Operator can configure cap behavior per provider: **hard cap** (never spill, always fall back) or **soft cap** (warn but continue using OAuth until provider returns error).
+
+**Why this lives in the wrapper, not LiteLLM:**
+LiteLLM treats Anthropic as one provider with one credential. The OAuth-vs-API-key distinction with budget-aware switching needs explicit logic, so the wrapper handles it before delegating to LiteLLM for the actual HTTP call.
+
+---
+
+## Consumer App Integration Pattern
+
+Apps integrate by calling the gateway exactly like they'd call OpenAI:
+
+```javascript
+// In Ops Hub, Media Manager, etc.
+import OpenAI from "openai";
+
+const llm = new OpenAI({
+  apiKey: process.env.SDM_GATEWAY_TOKEN,  // app-specific bearer token
+  baseURL: "https://llm.sanddollarmanagementllc.com/v1",
+});
+
+const response = await llm.chat.completions.create({
+  model: "default",  // or "reasoning", "fast", "vision", etc. — alias, not real model name
+  messages: [{ role: "user", content: "Hello" }],
+});
+```
+
+For apps already coded against the Anthropic SDK, the gateway also exposes `/v1/messages` with Anthropic-compatible request/response shape. Same alias-based model parameter.
+
+**Each app gets:**
+- Its own bearer token (created in admin UI under Apps page).
+- Its own default alias.
+- Its own monthly budget cap (optional; if set and exceeded, gateway returns 429 to the app).
+- Its own usage dashboard view.
+
+**Migration steps for an existing app:**
+1. Register the app in gateway admin → get bearer token.
+2. Set `SDM_GATEWAY_TOKEN` and `SDM_GATEWAY_URL` env vars in the app's Coolify config.
+3. Replace direct `new Anthropic({ apiKey: ... })` with the gateway-pointed client shown above.
+4. Replace hardcoded model strings (`claude-sonnet-4-6-...`) with aliases (`default`).
+5. Deploy. Watch the gateway logs page to confirm calls landing.
+
+---
+
+## Admin UI
+
+Dark mode, professional, polished. Matches existing SDM dashboard aesthetic.
+
+**Pages:**
+1. **Dashboard** — current month spend per provider, OAuth credit burn rate, fallback rate, top-spending apps.
+2. **Providers** — list, add, edit, test connection. Each provider shows enabled state, credential type, last successful call, current month tokens/cost.
+3. **Aliases** — list, add, edit. Drag-to-reorder fallback chain. Test alias button that fires a sample call through the full chain.
+4. **Apps** — list of consumer apps. Generate/revoke bearer tokens. Set default alias and monthly budget per app.
+5. **Usage** — filterable chart view: by app, by provider, by alias, by date range.
+6. **Logs** — paginated call log with filters. Click into individual call for full request/response (response redacted by default; reveal-on-click).
+7. **Settings** — `ADMIN_EMAILS`, encryption key rotation, log retention policy, default fallback behavior.
+
+All admin pages are server-side-rendered, gated by NextAuth's `getServerSession()` + an `ADMIN_EMAILS` whitelist check. No anonymous access. Logs page respects a "reveal" toggle and surfaces a warning when an operator views raw request bodies.
+
+---
+
+## Observability & Logging
+
+**Logged per call:**
+- App ID, alias requested, provider ID and model used, auth method.
+- Token counts (input, output), cost in USD.
+- Latency in ms, HTTP status, error if any.
+- Fallback chain position (0 = primary, 1 = first fallback, etc.).
+- Timestamp.
+
+**Not logged by default:**
+- Full request body / messages (PII, prompts may be sensitive).
+- Full response body.
+
+Operator can toggle "verbose mode" per app to capture bodies for debugging, with a default 24-hour auto-disable.
+
+**Alerts (V1 keeps these simple, just admin UI notifications; future versions can email/Telegram):**
+- OAuth token expiring within 30 days.
+- Provider credential auth failure (401/403).
+- Monthly OAuth credit > 80% consumed.
+- Fallback rate on an alias > 25% over 24 hours.
+
+---
+
+## Deployment
+
+- **Domain:** `llm.sanddollarmanagementllc.com` (per D-014)
+- **Coolify project:** `sdm-llm-gateway` (on the apps server, NOT the CC server)
+- **Services in the project:**
+  - `gateway-web` (Next.js wrapper service, public on the gateway domain)
+  - `gateway-litellm` (LiteLLM proxy, internal only, exposed only on Docker network)
+  - `gateway-db` (Postgres 16 container, internal only)
+- **Env vars** (see `.env.example` for the canonical list):
+  - `ADMIN_EMAILS` — comma-separated allowed Google login emails
+  - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — NextAuth Google OAuth
+  - `NEXTAUTH_SECRET` — NextAuth session signing key (generate with `openssl rand -base64 32`)
+  - `NEXTAUTH_URL` — `https://llm.sanddollarmanagementllc.com`
+  - `DATABASE_URL` — Postgres connection string (`postgresql://USER:PASS@gateway-db:5432/sdm_llm_gateway`)
+  - `GATEWAY_ENCRYPTION_KEY` — 32-byte hex, AES-256-GCM key for provider credential encryption
+  - `LITELLM_INTERNAL_URL` — `http://gateway-litellm:4000`
+  - `LITELLM_MASTER_KEY` — bearer key the wrapper uses to call LiteLLM
+  - `NEXT_PUBLIC_GATEWAY_URL` — `https://llm.sanddollarmanagementllc.com`
+  - `NODE_ENV` — `production`
+
+---
+
+## Build Phases
+
+**Phase 0 — Scaffolding (complete)**
+- Repo created, docs drafted, decisions resolved.
+- Three docs corrected on 2026-05-29 after stack mismatch discovery (see D-017, D-018, D-019).
+
+**Phase 1 — Skeleton & Auth (target: 2 days with Claude Code)**
+- Next.js 14 (App Router, JavaScript) scaffolded with dark mode admin UI shell.
+- Postgres container provisioned in Coolify; migrations for all six tables applied.
+- NextAuth + Google OAuth + `ADMIN_EMAILS` whitelist working (mirror Ops Hub `src/lib/auth.js`).
+- Empty Providers / Aliases / Apps / Logs / Usage pages with navigation.
+
+**Phase 2 — LiteLLM Integration & Single Provider (target: 1 day)**
+- LiteLLM container deployed via docker-compose.
+- One provider end-to-end: Anthropic via API key only.
+- `/v1/chat/completions` endpoint working through the wrapper.
+- Calls logged to `call_logs`.
+
+**Phase 3 — Multi-Provider & Aliases (target: 1-2 days)**
+- OpenAI, Gemini, xAI, OpenRouter added to LiteLLM config.
+- Alias resolution logic in wrapper.
+- Default aliases seeded on first run.
+- Fallback chain execution with logging of fallback reason.
+
+**Phase 4 — Anthropic OAuth Path (target: 1 day)**
+- OAuth credential storage and encryption.
+- Monthly usage tracker.
+- Hard-cap and soft-cap modes.
+- OAuth-first → API-key fallback verified end-to-end.
+
+**Phase 5 — Admin UI & Usage Dashboard (target: 2 days)**
+- All admin pages functional.
+- Usage dashboard with charts.
+- Log browser with filters.
+
+**Phase 6 — Consumer App Migration (target: 1 day per app)**
+- Ops Hub migrated first (smallest blast radius for testing).
+- Media Manager second.
+- Gmail Drive Manager third.
+- AI Social Posting App fourth.
+- Motivational video pipeline last.
+
+Total estimate: ~10 working days with Claude Code on the server.
+
+---
+
+## Open Decisions (see OPEN_DECISIONS.md for full text)
+
+Two decisions remain open, both for later phases. Neither blocks Phase 1.
+
+1. **OD-001** — OAuth token rotation reminder mechanism. Blocks Phase 4.
+2. **OD-002** — Per-agent alias ownership pattern (operator already verbally confirmed Option 1: apps own it). Blocks Phase 6.
+
+---
+
+## Decisions Already Made (carry forward, do not relitigate)
+
+See `DECISION_LOG.md` for full text and rationale.
+
+- **D-001** — LiteLLM Proxy as routing engine.
+- **D-002** — Standalone service, not embedded in Ops Hub.
+- **D-003** — OpenAI-compatible API primary; Anthropic-compatible secondary.
+- **D-004** — Alias-based routing, not direct provider/model selection from apps.
+- **D-005** — Anthropic OAuth handling lives in wrapper layer, not LiteLLM config.
+- **D-006** — Superseded by D-017.
+- **D-007** — Superseded by D-019.
+- **D-008** — Per-app bearer tokens, hashed at rest.
+- **D-009** — Credentials encrypted at rest with `GATEWAY_ENCRYPTION_KEY` (AES-256-GCM).
+- **D-010** — Five V1 providers: Anthropic, OpenAI, Gemini, xAI Grok, OpenRouter.
+- **D-011** — Five default aliases: `default`, `reasoning`, `fast`, `vision`, `bulk-classify`.
+- **D-012** — `workspace_id` column on every domain table.
+- **D-013** — Repo name `sdm-llm-gateway`.
+- **D-014** — Public domain `llm.sanddollarmanagementllc.com`.
+- **D-015** — Superseded by D-017.
+- **D-016** — Encryption key backup: Coolify env var + 1Password.
+- **D-017** — Database is Postgres container in Coolify, not Supabase.
+- **D-018** — Language is JavaScript, not TypeScript.
+- **D-019** — Auth is NextAuth + Google OAuth + `ADMIN_EMAILS` whitelist.
+
+---
+
+## Things Claude Code Should NOT Do
+
+- Do not hardcode any model strings outside the database. Even seed values go through SQL migrations.
+- Do not commit any real API keys, OAuth tokens, `GATEWAY_ENCRYPTION_KEY`, `LITELLM_MASTER_KEY`, `NEXTAUTH_SECRET`, or `GOOGLE_CLIENT_SECRET` values. `.env.example` only.
+- Do not skip the encryption step on provider credentials. Plaintext storage is a stop-build issue.
+- Do not auto-create alias chains or fallback rules from inference. Every entry requires explicit operator save in admin UI.
+- Do not deprecate the API-key path on any provider. Every provider keeps API key as a first-class credential, even Anthropic where OAuth is preferred.
+- Do not expose LiteLLM or Postgres directly to the public internet. Only the Next.js wrapper is public-facing.
+- Do not skip log redaction on request/response bodies. Verbose mode is opt-in, time-limited, and surfaced clearly in the UI.
+- Do not exceed the 500-line soft cap per component without explicit operator approval logged in DECISION_LOG.
+- Do not introduce TypeScript or any ORM (Prisma, Drizzle, etc.). Match the existing SDM stack: JavaScript + plain `pg`.
+- Do not invent new patterns (auth, DB, config). When in doubt, read `SDM-Ops-Hub/src/lib/auth.js` and `SDM-Ops-Hub/src/lib/supabase.js` (the latter is misleadingly named but is actually plain `pg` helpers) and match.
+
+---
+
+## Reference
+
+- LiteLLM Proxy docs: https://docs.litellm.ai/docs/proxy/quick_start
+- Anthropic Agent SDK auth: https://code.claude.com/docs/en/authentication
+- Anthropic Agent SDK credit policy: search Anthropic help center for "Agent SDK credit"
+- OpenAI API spec: https://platform.openai.com/docs/api-reference/chat
+- NextAuth docs: https://next-auth.js.org/configuration/options
+- Existing Ops Hub patterns: `C:\Users\sandd\Desktop\SDMSoftware\SDM-Ops-Hub\src\lib\auth.js` (auth) and `C:\Users\sandd\Desktop\SDMSoftware\SDM-Ops-Hub\src\lib\supabase.js` (DB helpers, despite the filename)
