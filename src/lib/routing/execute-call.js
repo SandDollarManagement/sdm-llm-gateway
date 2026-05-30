@@ -4,13 +4,11 @@
 //   2. Try each provider in chain order until one succeeds.
 //   3. Log every attempt (success or failure) to call_logs.
 //   4. Return the first successful response in OpenAI-compatible shape.
-//
-// Phase 2A: only the Anthropic-via-claude-CLI provider is wired up.
-// Phase 3 will add other providers (OpenAI, Gemini, Grok, OpenRouter) and
-// the fallback loop will exercise multiple entries.
 
 import { resolveAlias } from '@/lib/routing/resolve-alias'
 import { callAnthropicViaClaudeCli } from '@/lib/providers/anthropic-claude-cli'
+import { callAnthropicViaApiKey } from '@/lib/providers/anthropic-api'
+import { callViaLiteLLM } from '@/lib/providers/litellm'
 import { logCall } from '@/lib/logging'
 
 const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001' // seed workspace
@@ -20,13 +18,6 @@ const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001' // seed workspace
  * @param {string} opts.aliasName
  * @param {object} opts.app             The app row from authenticateAppRequest.
  * @param {Array}  opts.messages        OpenAI-style messages array.
- * @returns {Promise<{
- *   completion: object,
- *   providerId: string,
- *   model: string,
- *   authMethod: string,
- *   latencyMs: number
- * }>}
  */
 export async function executeChatCompletion({ aliasName, app, messages }) {
   const { alias, providers } = await resolveAlias({
@@ -45,13 +36,12 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
       continue
     }
     if (!provider.enabled) {
-      errors.push({ position: i, error: `provider ${provider.name} disabled` })
+      errors.push({ position: i, providerName: provider.name, error: `provider ${provider.name} disabled` })
       continue
     }
 
     try {
       const result = await tryProvider({ provider, entry, messages })
-      // Success — log and return.
       await logCall({
         workspaceId: WORKSPACE_ID,
         appId: app.id,
@@ -59,6 +49,8 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
         providerId: provider.id,
         model: result.model,
         authMethod: provider.auth_type,
+        requestTokens: result.request_tokens ?? null,
+        responseTokens: result.response_tokens ?? null,
         latencyMs: result.latency_ms,
         status: 200,
         fallbackPosition: i,
@@ -69,6 +61,8 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
           model: result.model,
           content: result.content,
           id: result.id,
+          requestTokens: result.request_tokens ?? null,
+          responseTokens: result.response_tokens ?? null,
         }),
         providerId: provider.id,
         model: result.model,
@@ -76,7 +70,7 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
         latencyMs: result.latency_ms,
       }
     } catch (err) {
-      errors.push({ position: i, error: err.message })
+      errors.push({ position: i, providerName: provider.name, error: err.message })
       await logCall({
         workspaceId: WORKSPACE_ID,
         appId: app.id,
@@ -85,36 +79,60 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
         model: entry.model || null,
         authMethod: provider.auth_type,
         latencyMs: err.latencyMs ?? null,
-        status: err.exitCode ?? 500,
+        status: err.status ?? err.exitCode ?? 500,
         error: err.message?.slice(0, 1000),
         fallbackPosition: i,
       })
-      // continue to next entry in chain
+      // fall through to next chain entry
     }
   }
 
   const summary = errors
-    .map(e => `[${e.position}] ${e.error}`)
+    .map(e => `[${e.position}/${e.providerName || '?'}] ${e.error}`)
     .join(' | ')
-  throw new Error(`All providers in chain failed for alias "${aliasName}": ${summary}`)
+  const allFailed = new Error(`All providers in chain failed for alias "${aliasName}": ${summary}`)
+  allFailed.fallbackErrors = errors
+  throw allFailed
 }
 
 async function tryProvider({ provider, entry, messages }) {
-  // Phase 2A: only Anthropic-via-claude-CLI is implemented.
-  if (provider.name.toLowerCase() === 'anthropic') {
+  const name = provider.name.toLowerCase()
+
+  // Anthropic OAuth path uses the claude CLI child process (D-020),
+  // bypassing LiteLLM entirely because the Messages API rejects OAuth tokens.
+  if (name === 'anthropic' && provider.auth_type === 'oauth') {
     return callAnthropicViaClaudeCli({
       messages,
       model: entry.model || undefined,
     })
   }
-  // Stub for other providers — wired up in Phase 3.
-  throw new Error(
-    `provider "${provider.name}" is not yet implemented in Phase 2A. ` +
-    `Only "anthropic" works right now.`
-  )
+
+  // Anthropic API key path uses direct HTTPS to api.anthropic.com.
+  // It also bypasses LiteLLM for a cleaner stack trace and to keep tokens
+  // out of the LiteLLM container's address space.
+  if (name === 'anthropic' && provider.auth_type === 'api_key') {
+    return callAnthropicViaApiKey({
+      providerId: provider.id,
+      messages,
+      model: entry.model || undefined,
+    })
+  }
+
+  // Everything else (OpenAI, Gemini, xAI Grok, OpenRouter, ...) goes through
+  // LiteLLM. The `model` field on the chain entry must match a model_name in
+  // litellm-config.yaml (e.g. "openai-gpt-4o").
+  return callViaLiteLLM({
+    messages,
+    model: entry.model,
+  })
 }
 
-function toOpenAIChatCompletion({ aliasName, model, content, id }) {
+function toOpenAIChatCompletion({ aliasName, model, content, id, requestTokens, responseTokens }) {
+  const promptTokens = requestTokens ?? null
+  const completionTokens = responseTokens ?? null
+  const totalTokens = promptTokens != null && completionTokens != null
+    ? promptTokens + completionTokens
+    : null
   return {
     id,
     object: 'chat.completion',
@@ -128,9 +146,9 @@ function toOpenAIChatCompletion({ aliasName, model, content, id }) {
       },
     ],
     usage: {
-      prompt_tokens: null,
-      completion_tokens: null,
-      total_tokens: null,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: totalTokens,
     },
     _gateway: {
       resolved_model: model,

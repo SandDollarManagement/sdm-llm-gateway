@@ -1,0 +1,61 @@
+# litellm-config.yaml
+# Read by the gateway-litellm container at startup. Each model_name here is
+# what the gateway's wrapper layer passes in the `model` field when calling
+# LiteLLM's /v1/chat/completions endpoint. LiteLLM routes to the actual
+# provider using `litellm_params.model` and the matching API key from env.
+#
+# Add a new provider by adding a new entry. To enable it, set the matching
+# API key env var on the gateway-litellm Coolify resource.
+
+model_list:
+  # ---------- OpenAI ----------
+  - model_name: openai-gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: openai-gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: openai-gpt-5
+    litellm_params:
+      model: openai/gpt-5
+      api_key: os.environ/OPENAI_API_KEY
+
+  # ---------- Google Gemini ----------
+  - model_name: gemini-2.5-pro
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  # ---------- xAI Grok ----------
+  - model_name: grok-3
+    litellm_params:
+      model: xai/grok-3
+      api_key: os.environ/XAI_API_KEY
+
+  # ---------- OpenRouter (meta-provider) ----------
+  - model_name: openrouter-deepseek
+    litellm_params:
+      model: openrouter/deepseek/deepseek-chat
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: openrouter-llama-3.3
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct
+      api_key: os.environ/OPENROUTER_API_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+# LiteLLM listens on 0.0.0.0:4000 by default. The gateway-web container
+# reaches it via LITELLM_INTERNAL_URL=http://<litellm-hostname>:4000 (the
+# hostname is whatever Coolify assigns to this resource on the project's
+# Docker network).

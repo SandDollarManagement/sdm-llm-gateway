@@ -1,0 +1,24 @@
+# Dockerfile.litellm
+# Wraps the official LiteLLM image so our config travels with the repo.
+# Build this resource in Coolify by adding a second Coolify resource pointed
+# at this same GitHub repo, with the Dockerfile path set to "Dockerfile.litellm".
+#
+# Required env vars on the resource:
+#   LITELLM_MASTER_KEY      — must match the gateway-web env var of the same
+#                             name; the wrapper authenticates here with it
+#   OPENAI_API_KEY          — set if you want OpenAI fallback to work
+#   GEMINI_API_KEY          — set if you want Gemini fallback to work
+#   XAI_API_KEY             — set if you want Grok fallback to work
+#   OPENROUTER_API_KEY      — set if you want OpenRouter fallback to work
+#
+# Anthropic is NOT routed through LiteLLM (see D-020). The Anthropic
+# subscription credit path lives entirely inside gateway-web via the
+# claude CLI; LiteLLM only handles the other providers.
+
+FROM ghcr.io/berriai/litellm:main-stable
+
+COPY litellm-config.yaml /app/litellm-config.yaml
+
+EXPOSE 4000
+
+CMD ["--config", "/app/litellm-config.yaml", "--port", "4000", "--host", "0.0.0.0"]
