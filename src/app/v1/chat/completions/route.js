@@ -1,5 +1,9 @@
-// src/app/api/v1/chat/completions/route.js
-// Public OpenAI-compatible chat completions endpoint.
+// src/app/v1/chat/completions/route.js
+// Public OpenAI-compatible chat completions endpoint, served at
+//     /v1/chat/completions
+// so consumer apps configured with `baseURL: "https://<gateway>/v1"` hit
+// it without an /api/ prefix (matches OpenAI's actual URL convention).
+//
 // Auth: per-app bearer token (D-008).
 // Routing: model parameter is interpreted as an alias name (D-004), resolved
 // to a fallback chain of providers. First successful provider wins.
