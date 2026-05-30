@@ -323,10 +323,29 @@ Each decision has:
 
 ---
 
+## D-020 — Anthropic subscription credit path is the `claude` CLI binary, not the Messages API
+
+- **Date:** 2026-05-29
+- **Status:** Active. Supersedes D-005's framing of how OAuth tokens are used.
+- **Context:** The prior session's design for D-005 assumed `sk-ant-oat01-*` OAuth tokens could be sent to the Anthropic Messages API to draw from the operator's Max plan credit. Verification against current present-day Anthropic policy (February 2026 ToS update + sustained 401 "OAuth authentication is currently not supported" responses on the Messages API for Bearer-auth OAuth tokens) shows that path is both technically rejected and a violation of Anthropic Consumer ToS. The legitimate way to use subscription credit programmatically is the official `claude` CLI binary, which Anthropic explicitly permits on any machine including server VPS. Starting 2026-06-15, `claude -p` draws from a dedicated monthly Agent SDK credit on Max subscriptions.
+- **Decision:** The Anthropic provider in the gateway invokes the `claude` CLI as a child process for every request. OAuth token is supplied via the `ANTHROPIC_OAUTH_TOKEN` env var; a Docker entrypoint script writes it to `~/.claude/.credentials.json` at container start so the CLI can pick it up. Other providers (OpenAI, Gemini, xAI Grok, OpenRouter) continue to use direct HTTPS API calls with API keys (Phase 3 onward).
+- **Alternatives considered:**
+  - Send OAuth token via `Authorization: Bearer` to the Messages API (the prior plan) — rejected, doesn't work and violates ToS.
+  - Send OAuth token via `x-api-key` to the Messages API — works in some contexts but Anthropic has stated this is not officially supported and the ToS concern remains.
+  - Abandon the subscription credit goal and use API key billing only — rejected; the operator pays $200/mo for Max specifically to use this credit programmatically.
+- **Consequences:**
+  - The gateway's Anthropic code path is a child-process invocation, not an HTTP fetch. Different shape from every other provider in the gateway.
+  - The `claude` CLI must be installed in the runtime Docker image (`@anthropic-ai/claude-code` global npm install).
+  - The OAuth token still lives in the `providers` table for audit/identity, but the source of truth for the CLI at runtime is the Coolify env var.
+  - Token counts and per-request cost data from Anthropic via this path are not directly exposed by the CLI; `call_logs.cost_usd` and token counts may be `null` for Anthropic calls until Anthropic exposes them. Other providers (Phase 3) will populate them normally via API responses.
+  - Architecture diagram and `CLAUDE.md` D-005 narrative updated to reflect this design.
+
+---
+
 ## Decisions Pending (see OPEN_DECISIONS.md)
 
 Two decisions remain open, both for later phases:
 - **OD-001 (was OD-004)** — OAuth token rotation reminder mechanism. Blocks Phase 4.
 - **OD-002 (was OD-006)** — Per-agent alias ownership pattern. Blocks Phase 6.
 
-Once resolved, they move here as `D-020` onward.
+Once resolved, they move here as `D-021` onward.

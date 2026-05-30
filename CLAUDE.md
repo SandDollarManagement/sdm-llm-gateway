@@ -177,7 +177,7 @@ The `credentials` column is encrypted with AES-256-GCM using `GATEWAY_ENCRYPTION
 
 | Provider     | Auth methods                          | Why it's in V1                                   |
 |--------------|---------------------------------------|--------------------------------------------------|
-| Anthropic    | OAuth token (`sk-ant-oat01-...`) + API key (`sk-ant-api03-...`) | Primary; OAuth uses subscription credit first |
+| Anthropic    | OAuth via `claude` CLI child process (`sk-ant-oat01-...`) + API key via direct HTTPS (`sk-ant-api03-...`) | Primary; OAuth path uses Max subscription credit (D-020) |
 | OpenAI       | API key                               | Strongest general fallback; broad model lineup   |
 | Google Gemini| API key                               | Independent infra (GCP); long context, multimodal|
 | xAI Grok     | API key                               | Independent infra; operator preference           |
@@ -217,25 +217,32 @@ Every fallback logged with reason. Operator can see fallback rate per alias in t
 
 ---
 
-## Anthropic OAuth Special Handling
+## Anthropic Subscription Credit Path — `claude` CLI child process (D-020)
 
-This is the one piece LiteLLM doesn't handle natively, so the wrapper layer owns it.
+**Why this is different from every other provider:** Anthropic does not currently allow OAuth tokens (`sk-ant-oat01-*`) to be used against the Messages API for programmatic billing against a Max plan subscription. The prior session's design tried to do exactly that and would not have worked. See D-020 for the full context and the 2026-02 ToS update.
 
-**Setup (one-time, operator runs locally):**
-1. Operator runs `claude setup-token` on their workstation.
-2. Generated OAuth token (prefix `sk-ant-oat01-`) is pasted into admin UI under Providers → Anthropic → OAuth Credential.
-3. Token is encrypted and stored in `providers.credentials`.
-4. Token valid for one year. Admin UI surfaces an expiry warning at 30 days remaining.
+**The legitimate path:** the official `claude` CLI binary is explicitly permitted on any machine, including a server VPS. Starting 2026-06-15 it draws from a dedicated monthly Agent SDK credit on Max subscriptions. The gateway therefore invokes `claude -p` as a child process for each Anthropic request.
+
+**Setup (one-time, operator runs locally to obtain the token):**
+1. Operator runs `claude setup-token` on their workstation (or any machine where `claude` CLI is installed).
+2. Generated OAuth token (prefix `sk-ant-oat01-`) is pasted into Coolify env var `ANTHROPIC_OAUTH_TOKEN` on the `gateway-web` resource.
+3. A provider row exists in `providers` with `auth_type = 'oauth'` for audit/identity, with `credentials` set to an encrypted marker (`env:ANTHROPIC_OAUTH_TOKEN`) — not the token itself.
+4. Token valid for one year. Admin UI (Phase 5) surfaces an expiry warning at 30 days remaining (OD-001).
+
+**Container bootstrap (handled automatically):**
+1. `Dockerfile` installs `@anthropic-ai/claude-code` globally so `claude` is on PATH.
+2. `scripts/docker-entrypoint.sh` runs as PID 1 before `node server.js`. It checks for `/app/.claude/.credentials.json`. If missing AND `ANTHROPIC_OAUTH_TOKEN` is set, it writes a credentials JSON from the token. The file is mode 600.
+3. If a Coolify persistent volume is mounted at `/app/.claude`, the credentials survive redeploys.
 
 **Runtime behavior:**
-1. Request arrives for an alias whose chain starts with Anthropic OAuth.
-2. Wrapper checks `monthly_usage` for current month's OAuth spend against $200 cap (configurable per provider in admin UI).
-3. If under cap → call Anthropic via OAuth token. Update `monthly_usage`.
-4. If over cap OR call returns credit-exhausted error → fall back to next chain entry (typically Anthropic API key).
-5. Operator can configure cap behavior per provider: **hard cap** (never spill, always fall back) or **soft cap** (warn but continue using OAuth until provider returns error).
+1. Request arrives for an alias whose `fallback_chain` first entry points at the Anthropic provider.
+2. Wrapper calls `src/lib/providers/anthropic-claude-cli.js`, which spawns `claude -p <prompt>` (optionally with `--model`).
+3. Stdout is captured, trimmed, and returned in OpenAI-compatible shape from `/v1/chat/completions`.
+4. The call is logged to `call_logs` with `auth_method = 'oauth'`. Token counts and per-call cost are `null` until Anthropic exposes them through this path.
+5. If `claude` exits non-zero or the call times out (60s default), the wrapper falls through to the next entry in the chain (Anthropic API key, then OpenAI, etc., as Phases 2B and 3 land).
 
-**Why this lives in the wrapper, not LiteLLM:**
-LiteLLM treats Anthropic as one provider with one credential. The OAuth-vs-API-key distinction with budget-aware switching needs explicit logic, so the wrapper handles it before delegating to LiteLLM for the actual HTTP call.
+**Why this is NOT done through LiteLLM:**
+LiteLLM speaks HTTPS to the Anthropic Messages API. The Messages API rejects OAuth tokens. LiteLLM can still handle every other provider (and an Anthropic *API key* path if added later in Phase 2B), but the OAuth-via-subscription path bypasses LiteLLM entirely.
 
 ---
 
@@ -333,6 +340,7 @@ Operator can toggle "verbose mode" per app to capture bodies for debugging, with
   - `LITELLM_INTERNAL_URL` — `http://gateway-litellm:4000`
   - `LITELLM_MASTER_KEY` — bearer key the wrapper uses to call LiteLLM
   - `NEXT_PUBLIC_GATEWAY_URL` — `https://llm.sanddollarmanagementllc.com`
+  - `ANTHROPIC_OAUTH_TOKEN` — Max plan OAuth token; consumed by `docker-entrypoint.sh` to hydrate `/app/.claude/.credentials.json` (D-020)
   - `NODE_ENV` — `production`
 
 ---
