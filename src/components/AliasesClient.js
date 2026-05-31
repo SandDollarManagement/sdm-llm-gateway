@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, AlertCircle, CheckCircle2, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { Plus, Trash2, AlertCircle, CheckCircle2, ChevronUp, ChevronDown, X, Play, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
 
 const PROVIDER_MODEL_HINTS = {
@@ -18,6 +18,7 @@ export default function AliasesClient({ initialAliases, initialProviders }) {
   const [editingId, setEditingId] = useState(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [banner, setBanner] = useState(null)
+  const [testResults, setTestResults] = useState({}) // { [aliasId]: { running, result } }
 
   async function refresh() {
     const res = await fetch('/api/admin/aliases', { cache: 'no-store' })
@@ -53,6 +54,17 @@ export default function AliasesClient({ initialAliases, initialProviders }) {
     showBanner('success', 'Updated.')
     setEditingId(null)
     refresh()
+  }
+
+  async function handleTest(id) {
+    setTestResults(prev => ({ ...prev, [id]: { running: true, result: null } }))
+    try {
+      const res = await fetch(`/api/admin/aliases/${id}/test`, { method: 'POST' })
+      const data = await res.json()
+      setTestResults(prev => ({ ...prev, [id]: { running: false, result: data } }))
+    } catch (err) {
+      setTestResults(prev => ({ ...prev, [id]: { running: false, result: { ok: false, error: err.message } } }))
+    }
   }
 
   async function handleDelete(id, name) {
@@ -111,9 +123,11 @@ export default function AliasesClient({ initialAliases, initialProviders }) {
             alias={a}
             providers={providers}
             isEditing={editingId === a.id}
+            testState={testResults[a.id]}
             onEdit={() => setEditingId(editingId === a.id ? null : a.id)}
             onUpdate={updates => handleUpdate(a.id, updates)}
             onDelete={() => handleDelete(a.id, a.name)}
+            onTest={() => handleTest(a.id)}
           />
         ))}
       </div>
@@ -121,8 +135,10 @@ export default function AliasesClient({ initialAliases, initialProviders }) {
   )
 }
 
-function AliasCard({ alias, providers, isEditing, onEdit, onUpdate, onDelete }) {
+function AliasCard({ alias, providers, isEditing, testState, onEdit, onUpdate, onDelete, onTest }) {
   const providerById = Object.fromEntries(providers.map(p => [p.id, p]))
+  const running = testState?.running
+  const result = testState?.result
   return (
     <div className="bg-surface-card border border-border rounded-xl">
       <div className="px-5 py-4 flex justify-between items-start">
@@ -134,6 +150,15 @@ function AliasCard({ alias, providers, isEditing, onEdit, onUpdate, onDelete }) 
           {alias.description && <p className="text-sm text-muted mt-1">{alias.description}</p>}
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={onTest}
+            disabled={running || (alias.fallback_chain || []).length === 0}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-brand/10 hover:bg-brand/20 text-brand-light disabled:opacity-40 disabled:cursor-not-allowed"
+            title={(alias.fallback_chain || []).length === 0 ? 'Add a provider to the chain first' : 'Fire a sample call through this alias'}
+          >
+            {running ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+            Test
+          </button>
           <button onClick={onEdit} className="text-xs px-3 py-1.5 rounded-md hover:bg-surface-hover text-muted hover:text-text-primary">
             {isEditing ? 'Close' : 'Edit'}
           </button>
@@ -142,6 +167,35 @@ function AliasCard({ alias, providers, isEditing, onEdit, onUpdate, onDelete }) 
           </button>
         </div>
       </div>
+
+      {result && (
+        <div className="px-5 pb-4">
+          <div className={clsx(
+            'border-t pt-3 text-sm',
+            result.ok ? 'border-success/40' : 'border-danger/40'
+          )}>
+            {result.ok ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-success">
+                  <CheckCircle2 size={14} />
+                  <span className="font-medium">Answered by {result.provider}</span>
+                  <span className="text-xs text-muted">· {result.model} · {result.latency_ms} ms</span>
+                </div>
+                <div className="text-sm text-muted italic">"{result.reply}"</div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-danger">
+                  <AlertCircle size={14} />
+                  <span className="font-medium">Test failed</span>
+                  <span className="text-xs text-muted">· {result.latency_ms} ms</span>
+                </div>
+                <div className="text-xs text-danger/80 break-all">{result.error}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {!isEditing && (
         <div className="px-5 pb-4">
