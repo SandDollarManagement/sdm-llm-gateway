@@ -1,15 +1,32 @@
 import AdminShell from '@/components/AdminShell'
-import PhaseStub from '@/components/PhaseStub'
+import ProvidersClient from '@/components/ProvidersClient'
+import { query } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export default function ProvidersPage() {
+const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001'
+
+async function loadProviders() {
+  try {
+    return await query(
+      `SELECT id, name, auth_type, base_url, enabled, created_at, updated_at,
+              CASE WHEN credentials IS NULL OR credentials = '' THEN false ELSE true END AS has_credential
+         FROM providers
+        WHERE workspace_id = $1
+        ORDER BY name, auth_type`,
+      [WORKSPACE_ID]
+    )
+  } catch (err) {
+    console.error('[providers] load failed:', err.message)
+    return []
+  }
+}
+
+export default async function ProvidersPage() {
+  const providers = await loadProviders()
   return (
     <AdminShell title="Providers">
-      <PhaseStub
-        phase="Phase 2"
-        summary="Add, edit, and test connections to Anthropic, OpenAI, Google Gemini, xAI Grok, and OpenRouter. Credentials are encrypted at rest with GATEWAY_ENCRYPTION_KEY (AES-256-GCM)."
-      />
+      <ProvidersClient initialProviders={providers} />
     </AdminShell>
   )
 }

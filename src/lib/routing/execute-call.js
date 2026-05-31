@@ -5,6 +5,8 @@
 //   3. Log every attempt (success or failure) to call_logs.
 //   4. Return the first successful response in OpenAI-compatible shape.
 
+import { queryOne } from '@/lib/db'
+import { decrypt } from '@/lib/crypto'
 import { resolveAlias } from '@/lib/routing/resolve-alias'
 import { callAnthropicViaClaudeCli } from '@/lib/providers/anthropic-claude-cli'
 import { callAnthropicViaApiKey } from '@/lib/providers/anthropic-api'
@@ -100,6 +102,7 @@ async function tryProvider({ provider, entry, messages }) {
 
   // Anthropic OAuth path uses the claude CLI child process (D-020),
   // bypassing LiteLLM entirely because the Messages API rejects OAuth tokens.
+  // Credentials live in the container env (ANTHROPIC_OAUTH_TOKEN), not the DB.
   if (name === 'anthropic' && provider.auth_type === 'oauth') {
     return callAnthropicViaClaudeCli({
       messages,
@@ -108,8 +111,8 @@ async function tryProvider({ provider, entry, messages }) {
   }
 
   // Anthropic API key path uses direct HTTPS to api.anthropic.com.
-  // It also bypasses LiteLLM for a cleaner stack trace and to keep tokens
-  // out of the LiteLLM container's address space.
+  // Credentials live encrypted in providers.credentials and are decrypted
+  // inside the anthropic-api module (it does the lookup itself).
   if (name === 'anthropic' && provider.auth_type === 'api_key') {
     return callAnthropicViaApiKey({
       providerId: provider.id,
@@ -119,12 +122,27 @@ async function tryProvider({ provider, entry, messages }) {
   }
 
   // Everything else (OpenAI, Gemini, xAI Grok, OpenRouter, ...) goes through
-  // LiteLLM. The `model` field on the chain entry must match a model_name in
-  // litellm-config.yaml (e.g. "openai-gpt-4o").
+  // LiteLLM. We decrypt the provider's API key here and pass it as a
+  // per-request override so LiteLLM doesn't need its own env vars for
+  // upstream credentials.
+  const apiKey = await loadProviderApiKey(provider.id)
   return callViaLiteLLM({
     messages,
     model: entry.model,
+    apiKey,
+    baseUrl: provider.base_url || undefined,
   })
+}
+
+async function loadProviderApiKey(providerId) {
+  const row = await queryOne(
+    `SELECT credentials FROM providers WHERE id = $1`,
+    [providerId]
+  )
+  if (!row || !row.credentials) {
+    throw new Error(`provider ${providerId} has no credential stored. Set its API key in the admin UI.`)
+  }
+  return decrypt(row.credentials)
 }
 
 function toOpenAIChatCompletion({ aliasName, model, content, id, requestTokens, responseTokens }) {

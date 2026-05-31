@@ -4,8 +4,10 @@
 // the actual HTTPS call to OpenAI / Gemini / Grok / OpenRouter / etc.
 //
 // The `model` argument is the LiteLLM model_name from litellm-config.yaml
-// (e.g. "openai-gpt-4o", "gemini-2.5-pro"). NOT the upstream provider's
-// raw model string — LiteLLM does that mapping internally.
+// (e.g. "openai-gpt-4o", "gemini-2.5-pro"). The `apiKey` argument is the
+// upstream provider's key — pulled from the providers table by the routing
+// layer and passed per-request so credentials live in our database, not in
+// LiteLLM's env vars.
 
 import { randomUUID } from 'node:crypto'
 
@@ -15,16 +17,29 @@ const DEFAULT_TIMEOUT_MS = 60_000
  * @param {object} opts
  * @param {Array}  opts.messages       OpenAI-style messages array.
  * @param {string} opts.model          LiteLLM model_name (e.g. "openai-gpt-4o").
+ * @param {string} [opts.apiKey]       Upstream provider's API key, decrypted by the caller.
+ *                                     LiteLLM will use this instead of its configured env-var key.
+ * @param {string} [opts.baseUrl]      Override upstream base URL (passed to LiteLLM via `api_base`).
  * @param {number} [opts.timeoutMs]    Default 60s.
  */
-export async function callViaLiteLLM({ messages, model, timeoutMs = DEFAULT_TIMEOUT_MS }) {
-  const baseUrl = process.env.LITELLM_INTERNAL_URL
+export async function callViaLiteLLM({
+  messages,
+  model,
+  apiKey,
+  baseUrl,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+}) {
+  const internalUrl = process.env.LITELLM_INTERNAL_URL
   const masterKey = process.env.LITELLM_MASTER_KEY
-  if (!baseUrl) throw new Error('LITELLM_INTERNAL_URL is not set')
+  if (!internalUrl) throw new Error('LITELLM_INTERNAL_URL is not set')
   if (!masterKey) throw new Error('LITELLM_MASTER_KEY is not set')
   if (!model) throw new Error('litellm: a model name is required (the LiteLLM model_name from config)')
 
-  const url = `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`
+  const url = `${internalUrl.replace(/\/$/, '')}/v1/chat/completions`
+
+  const requestBody = { model, messages }
+  if (apiKey) requestBody.api_key = apiKey      // LiteLLM accepts per-request key override
+  if (baseUrl) requestBody.api_base = baseUrl   // LiteLLM accepts per-request base url override
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -38,7 +53,7 @@ export async function callViaLiteLLM({ messages, model, timeoutMs = DEFAULT_TIME
         Authorization: `Bearer ${masterKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ model, messages }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     })
   } catch (err) {
