@@ -1,6 +1,6 @@
 {
   "name": "sdm-llm-gateway",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "description": "Multi-provider LLM gateway with Anthropic OAuth-first routing",
   "scripts": {
