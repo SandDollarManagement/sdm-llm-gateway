@@ -1,15 +1,37 @@
 import AdminShell from '@/components/AdminShell'
-import PhaseStub from '@/components/PhaseStub'
+import AliasesClient from '@/components/AliasesClient'
+import { query } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export default function AliasesPage() {
+const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001'
+
+async function load() {
+  try {
+    const [aliases, providers] = await Promise.all([
+      query(
+        `SELECT id, name, description, fallback_chain, created_at, updated_at
+           FROM aliases WHERE workspace_id = $1 ORDER BY name`,
+        [WORKSPACE_ID]
+      ),
+      query(
+        `SELECT id, name, auth_type, enabled
+           FROM providers WHERE workspace_id = $1 ORDER BY name, auth_type`,
+        [WORKSPACE_ID]
+      ),
+    ])
+    return { aliases, providers }
+  } catch (err) {
+    console.error('[aliases] load failed:', err.message)
+    return { aliases: [], providers: [] }
+  }
+}
+
+export default async function AliasesPage() {
+  const { aliases, providers } = await load()
   return (
     <AdminShell title="Aliases">
-      <PhaseStub
-        phase="Phase 3"
-        summary="Edit the five default aliases (default, reasoning, fast, vision, bulk-classify) or add your own. Each alias maps to a fallback chain of {provider, model, priority} entries."
-      />
+      <AliasesClient initialAliases={aliases} initialProviders={providers} />
     </AdminShell>
   )
 }
