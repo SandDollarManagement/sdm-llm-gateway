@@ -2,7 +2,7 @@
 
 Self-hosted multi-provider LLM gateway for SDM Software apps. Routes calls through the Anthropic Agent SDK monthly credit first, then falls back to OpenAI, Gemini, xAI Grok, or OpenRouter automatically. One place to manage credentials, fallback rules, and per-app usage.
 
-**Status:** Phase 0 complete. Phase 1 (skeleton + auth) ready to start with Claude Code on the server.
+**Status:** Phase 1 live; Phase 2A (Anthropic via claude CLI) live; Phase 2B+2C code shipped; admin UI for providers/apps/aliases/logs/dashboard shipped.
 
 ---
 
