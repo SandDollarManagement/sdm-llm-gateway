@@ -42,7 +42,9 @@ export async function callAnthropicViaClaudeCli({
   }
 
   const prompt = messagesToPrompt(messages)
-  const args = ['-p', prompt]
+  // --output-format text is the explicit default but pinning it here keeps the
+  // contract stable across CLI versions. --print suppresses progress output.
+  const args = ['--print', '--output-format', 'text', prompt]
   if (model) {
     args.push('--model', model)
   }
@@ -51,9 +53,19 @@ export async function callAnthropicViaClaudeCli({
   const result = await runCli(CLAUDE_BIN, args, { timeoutMs })
   const latencyMs = Date.now() - startedAt
 
+  // Always log stderr (truncated) so docker logs show what the CLI is up to
+  // even on "successful" calls. Empty replies are the symptom of silent
+  // failure modes (cred mismatch, timeout, missing refresh token, etc.).
+  if (result.stderr && result.stderr.trim()) {
+    console.warn(`[anthropic-claude-cli] stderr (${result.stderr.length} chars): ${result.stderr.slice(0, 800)}`)
+  }
+  if (!result.stdout || !result.stdout.trim()) {
+    console.warn(`[anthropic-claude-cli] empty stdout, exit=${result.code}, latency=${latencyMs}ms`)
+  }
+
   if (result.code !== 0) {
     const err = new Error(
-      `claude CLI exited with code ${result.code}: ${result.stderr.slice(0, 500)}`
+      `claude CLI exited with code ${result.code}: ${result.stderr.slice(0, 500) || '(no stderr)'}`
     )
     err.exitCode = result.code
     err.stdout = result.stdout
@@ -70,6 +82,14 @@ export async function callAnthropicViaClaudeCli({
     raw_stderr: result.stderr,
     exit_code: result.code,
     latency_ms: latencyMs,
+    // Surfaced through the routing layer for admin diagnostics
+    _diag: {
+      exit_code: result.code,
+      stdout_len: result.stdout?.length || 0,
+      stderr_len: result.stderr?.length || 0,
+      stderr_preview: result.stderr ? result.stderr.slice(0, 400) : '',
+      argv: args,
+    },
   }
 }
 

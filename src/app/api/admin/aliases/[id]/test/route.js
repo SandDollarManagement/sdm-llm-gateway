@@ -48,6 +48,7 @@ export async function POST(_request, { params }) {
       ? await queryOne(`SELECT name, auth_type FROM providers WHERE id = $1`, [providerId])
       : null
 
+    const replyContent = completion?.choices?.[0]?.message?.content || ''
     return NextResponse.json({
       ok: true,
       alias: aliasRow.name,
@@ -55,7 +56,11 @@ export async function POST(_request, { params }) {
       model,
       auth_method: authMethod,
       latency_ms: latencyMs ?? elapsed,
-      reply: completion?.choices?.[0]?.message?.content || '(empty)',
+      reply: replyContent || '(empty)',
+      // Always include raw provider diagnostics in test results so admins can
+      // see what the underlying CLI / API actually said even when the call
+      // technically succeeded.
+      _diag: completion?._gateway?._diag || null,
     })
   } catch (err) {
     const elapsed = Date.now() - startedAt

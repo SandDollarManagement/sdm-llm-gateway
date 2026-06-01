@@ -65,6 +65,7 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
           id: result.id,
           requestTokens: result.request_tokens ?? null,
           responseTokens: result.response_tokens ?? null,
+          diag: result._diag || null,
         }),
         providerId: provider.id,
         model: result.model,
@@ -145,7 +146,7 @@ async function loadProviderApiKey(providerId) {
   return decrypt(row.credentials)
 }
 
-function toOpenAIChatCompletion({ aliasName, model, content, id, requestTokens, responseTokens }) {
+function toOpenAIChatCompletion({ aliasName, model, content, id, requestTokens, responseTokens, diag }) {
   const promptTokens = requestTokens ?? null
   const completionTokens = responseTokens ?? null
   const totalTokens = promptTokens != null && completionTokens != null
@@ -170,6 +171,7 @@ function toOpenAIChatCompletion({ aliasName, model, content, id, requestTokens, 
     },
     _gateway: {
       resolved_model: model,
+      _diag: diag || null,
     },
   }
 }

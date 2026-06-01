@@ -182,6 +182,16 @@ function AliasCard({ alias, providers, isEditing, testState, onEdit, onUpdate, o
                   <span className="text-xs text-muted">· {result.model} · {result.latency_ms} ms</span>
                 </div>
                 <div className="text-sm text-muted italic">"{result.reply}"</div>
+                {result._diag && (result._diag.stderr_len > 0 || result.reply === '(empty)') && (
+                  <details className="mt-2">
+                    <summary className="text-xs text-muted cursor-pointer hover:text-text-primary">CLI diagnostics</summary>
+                    <pre className="text-xs text-muted bg-surface-tertiary border border-border rounded p-2 mt-1 overflow-x-auto whitespace-pre-wrap">
+                      exit={result._diag.exit_code} stdout_len={result._diag.stdout_len} stderr_len={result._diag.stderr_len}{'\n'}
+                      argv: {Array.isArray(result._diag.argv) ? result._diag.argv.join(' ') : '?'}{'\n'}
+                      stderr: {result._diag.stderr_preview || '(empty)'}
+                    </pre>
+                  </details>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
