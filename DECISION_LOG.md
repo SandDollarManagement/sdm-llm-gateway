@@ -326,7 +326,7 @@ Each decision has:
 ## D-020 — Anthropic subscription credit path is the `claude` CLI binary, not the Messages API
 
 - **Date:** 2026-05-29
-- **Status:** Active. Supersedes D-005's framing of how OAuth tokens are used.
+- **Status:** Superseded by D-021 (2026-05-31). The CLI path works structurally, but Anthropic CLI v2.1.159 silently refuses to bill subscription credit when invoked in a headless container, returning exit 0 with empty stdout. See D-021 for details and the new primary path.
 - **Context:** The prior session's design for D-005 assumed `sk-ant-oat01-*` OAuth tokens could be sent to the Anthropic Messages API to draw from the operator's Max plan credit. Verification against current present-day Anthropic policy (February 2026 ToS update + sustained 401 "OAuth authentication is currently not supported" responses on the Messages API for Bearer-auth OAuth tokens) shows that path is both technically rejected and a violation of Anthropic Consumer ToS. The legitimate way to use subscription credit programmatically is the official `claude` CLI binary, which Anthropic explicitly permits on any machine including server VPS. Starting 2026-06-15, `claude -p` draws from a dedicated monthly Agent SDK credit on Max subscriptions.
 - **Decision:** The Anthropic provider in the gateway invokes the `claude` CLI as a child process for every request. OAuth token is supplied via the `ANTHROPIC_OAUTH_TOKEN` env var; a Docker entrypoint script writes it to `~/.claude/.credentials.json` at container start so the CLI can pick it up. Other providers (OpenAI, Gemini, xAI Grok, OpenRouter) continue to use direct HTTPS API calls with API keys (Phase 3 onward).
 - **Alternatives considered:**
@@ -342,10 +342,30 @@ Each decision has:
 
 ---
 
+## D-021 — Anthropic API key is primary; OAuth path retained but disabled by default
+
+- **Date:** 2026-05-31
+- **Status:** Active. Supersedes D-020.
+- **Context:** D-020 designed the Anthropic path around invoking the `claude` CLI binary so the operator's Max plan subscription credit could be used programmatically. Implementation was complete: CLI installed in the runtime image, entrypoint hydrated `~/.claude/.credentials.json` from `ANTHROPIC_OAUTH_TOKEN`, wrapper spawned `claude --print` child processes. Test in production with v2.1.159 of the CLI revealed that the CLI silently refuses to bill subscription credit from a headless container — it executes, takes ~30s, returns exit 0 with empty stdout. Same behavior with `--debug` flag (no diagnostic output produced). Same behavior with `CLAUDE_CODE_OAUTH_TOKEN` env var. This is consistent with Anthropic's Feb 2026 ToS update: OAuth tokens are now explicitly restricted to first-party use cases (the official `claude` interactive flow), and Anthropic has implemented the restriction at the CLI level via a silent no-op for non-conforming environments rather than a loud error.
+- **Decision:** The Anthropic provider in the gateway uses API key authentication (`sk-ant-api03-...`) as the primary and only currently-working path. Calls go directly to the Anthropic Messages API over HTTPS with `x-api-key`, billed per-token against the API key's billing account. Costs land on whatever Anthropic billing the API key is associated with. The OAuth/claude-CLI code (`src/lib/providers/anthropic-claude-cli.js`, the Docker `claude` install, the entrypoint credentials write) remains in place so if Anthropic ever re-opens programmatic subscription use, the path can be re-enabled via the admin UI without rebuilding the architecture.
+- **Alternatives considered:**
+  - Keep trying to make OAuth work — rejected. We exhausted every documented credentials path; Anthropic's silent-fail is intentional behavior, not a config bug.
+  - Use `claude --bare` mode with OAuth token as `ANTHROPIC_API_KEY` — rejected; bare mode strictly requires a real API key per its docs, and Anthropic's API rejects OAuth tokens via that path too (Feb 2026 ToS).
+  - Switch to Amazon Bedrock Claude — viable future option for cost optimization, but introduces AWS infra we don't have today. Defer.
+  - Abandon Anthropic in the chain entirely — rejected; Claude is the highest-quality model for the operator's use cases, just need to accept per-token billing.
+- **Consequences:**
+  - The operator's Max plan subscription continues to serve interactive Claude Code use on the workstation. It does NOT subsidize gateway-routed calls. The $200/mo essentially becomes "developer tool cost" for workstation work only.
+  - Gateway-routed Anthropic calls bill per-token at standard API rates against the API key.
+  - The fallback chain's design rationale still holds: when Anthropic is down or over budget, the chain falls to OpenAI / Gemini / Grok / OpenRouter exactly as designed.
+  - The default alias's chain becomes: `[anthropic api_key → openai → gemini → ...]` instead of `[anthropic oauth → anthropic api_key → ...]`. The OAuth provider record can be deleted or left in place (disabled).
+  - Operator action: generate an Anthropic API key, add it via `/providers` admin UI, edit the `default` alias chain to put Anthropic API key first.
+
+---
+
 ## Decisions Pending (see OPEN_DECISIONS.md)
 
 Two decisions remain open, both for later phases:
-- **OD-001 (was OD-004)** — OAuth token rotation reminder mechanism. Blocks Phase 4.
+- **OD-001 (was OD-004)** — OAuth token rotation reminder mechanism. Now lower priority since OAuth is no longer the primary path.
 - **OD-002 (was OD-006)** — Per-agent alias ownership pattern. Blocks Phase 6.
 
-Once resolved, they move here as `D-021` onward.
+Once resolved, they move here as `D-022` onward.
