@@ -362,10 +362,66 @@ Each decision has:
 
 ---
 
+## D-022 — `/v1/messages` (non-streaming) is a faithful Anthropic passthrough
+
+- **Date:** 2026-06-13
+- **Status:** Active
+- **Context:** Gmail-Drive-Manager (GDM) — currently the gateway's ONLY live
+  consumer (Ops Hub / Media Manager still call `api.anthropic.com` directly) — is
+  blocked on its migration Phase 3. GDM's orchestrator and instruction_parser
+  agents use Anthropic **tool calling**, and all its classifiers rely on
+  **prompt caching** (`cache_control`) for cost control. The non-streaming
+  `/v1/messages` path extracted only `model`/`messages`/`system`/`max_tokens`/
+  `stream` from the body, flattened message content to text (dropping
+  `tool_use`/`tool_result` blocks), and routed `system` through
+  `openAiToAnthropic` (dropping `cache_control`). Net effect: no tools reached
+  Anthropic and caching never engaged — contradicting D-003, which named
+  `/v1/messages` as the Anthropic-compatible interface including `cache_control`.
+  The current behavior was a bug, not intent.
+- **Decision:** The non-streaming `/v1/messages` path forwards the caller's
+  original Anthropic-shaped body to the Anthropic Messages API **verbatim**,
+  overriding only `model` (alias → resolved model from the DB chain) and forcing
+  `stream:false`. `system` (incl. `cache_control` blocks), `messages` (structured
+  content incl. `tool_use`/`tool_result`), `tools`, `tool_choice`, and sampling
+  params pass through untouched. A new `callAnthropicMessagesRaw()` in
+  `src/lib/providers/anthropic-api.js` performs the raw POST with a **fresh
+  provider-key header set** (it never spreads the incoming request headers — the
+  caller's `x-api-key` is the gateway bearer token and must not reach Anthropic).
+  `anthropic-version` / `anthropic-beta` are forwarded from the caller when
+  present, defaulting to `2023-06-01`. The route returns Anthropic's raw response
+  body so consumers read native `content` (`tool_use`) and full `usage` (incl.
+  `cache_read_input_tokens` / `cache_creation_input_tokens`). The existing
+  `callAnthropicViaApiKey()` (used only by the OpenAI-compatible
+  `/v1/chat/completions` path) is **unchanged**, so that endpoint is unaffected.
+- **Alternatives considered:**
+  - Extend `openAiToAnthropic` to carry tools/`cache_control` — rejected; it is an
+    OpenAI→Anthropic translator for the chat/completions path. `/v1/messages`
+    input is already Anthropic-shaped, so verbatim passthrough is correct and
+    lower-risk than translation.
+  - Hardcode a newer `anthropic-version` — rejected; forwarding the caller's SDK
+    headers keeps feature flags out of the gateway (no-hardcoded mandate).
+  - Fix the streaming path in the same change — deferred; GDM does not stream, and
+    it widens blast radius. Logged as follow-up.
+- **Consequences:**
+  - `/v1/messages` becomes a true Anthropic passthrough for non-streaming calls;
+    GDM's tool-using agents and cache-dependent classifiers work → GDM Phase 3
+    unblocks.
+  - **Follow-up (deferred):** the streaming `/v1/messages` path STILL flattens to
+    text (drops tools + `cache_control`) — build a faithful streaming passthrough
+    when a streaming consumer appears. And `call_logs` does not yet break out
+    `cache_*` tokens (GDM reads them from the response body).
+  - The OpenAI `/v1/chat/completions` endpoint is unchanged.
+  - **Validation:** the gateway has no automated test suite, so the gate is
+    `next build` (passed) + a live probe — a `/v1/messages` call with a `tools` +
+    `cache_control` body, asserting the response contains a `tool_use` block and
+    `usage.cache_*` fields. Must pass before GDM flips its agents to gateway.
+
+---
+
 ## Decisions Pending (see OPEN_DECISIONS.md)
 
 Two decisions remain open, both for later phases:
 - **OD-001 (was OD-004)** — OAuth token rotation reminder mechanism. Now lower priority since OAuth is no longer the primary path.
 - **OD-002 (was OD-006)** — Per-agent alias ownership pattern. Blocks Phase 6.
 
-Once resolved, they move here as `D-022` onward.
+Once resolved, they move here as `D-023` onward.
