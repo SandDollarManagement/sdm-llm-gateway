@@ -10,7 +10,7 @@
 import { NextResponse } from 'next/server'
 import { authenticateAppRequest, AppAuthError } from '@/lib/app-auth'
 import { resolveAlias } from '@/lib/routing/resolve-alias'
-import { callAnthropicViaApiKey } from '@/lib/providers/anthropic-api'
+import { callAnthropicMessagesRaw } from '@/lib/providers/anthropic-api'
 import { streamMessagesAnthropic } from '@/lib/routing/stream-call'
 import { logCall } from '@/lib/logging'
 
@@ -139,17 +139,30 @@ export async function POST(request) {
     )
   }
 
-  const messagesWithSystem = system
-    ? [{ role: 'system', content: system }, ...normalizedMessages]
-    : normalizedMessages
+  // Build the Anthropic request from the ORIGINAL body so structured content
+  // (tool_use / tool_result), tools, tool_choice, and system blocks WITH
+  // cache_control pass through UNTOUCHED. Override only the model (alias ->
+  // resolved). The streaming branch above still uses normalizedMessages. (D-022)
+  const anthropicRequest = { messages: anthroMessages, max_tokens: maxTokens }
+  if (system !== null) anthropicRequest.system = system
+  if (body.tools !== undefined) anthropicRequest.tools = body.tools
+  if (body.tool_choice !== undefined) anthropicRequest.tool_choice = body.tool_choice
+  if (body.metadata !== undefined) anthropicRequest.metadata = body.metadata
+  if (body.stop_sequences !== undefined) anthropicRequest.stop_sequences = body.stop_sequences
+  if (body.temperature !== undefined) anthropicRequest.temperature = body.temperature
+  if (body.top_p !== undefined) anthropicRequest.top_p = body.top_p
+  if (body.top_k !== undefined) anthropicRequest.top_k = body.top_k
 
   const startedAt = Date.now()
   try {
-    const result = await callAnthropicViaApiKey({
+    const result = await callAnthropicMessagesRaw({
       providerId: chosen.provider.id,
-      messages: messagesWithSystem,
+      anthropicRequest,
       model: chosen.entry.model,
-      maxTokens,
+      forwardHeaders: {
+        version: request.headers.get('anthropic-version') || undefined,
+        beta: request.headers.get('anthropic-beta') || undefined,
+      },
     })
 
     await logCall({

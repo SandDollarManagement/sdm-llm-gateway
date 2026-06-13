@@ -93,6 +93,96 @@ export async function callAnthropicViaApiKey({
 }
 
 /**
+ * Faithful Anthropic Messages passthrough for the /v1/messages endpoint (D-022).
+ *
+ * Forwards the caller's ORIGINAL Anthropic-shaped request body to the Messages
+ * API VERBATIM, overriding only `model` (alias -> resolved) and forcing
+ * non-streaming. This preserves `system` (incl. cache_control blocks),
+ * structured message content (tool_use / tool_result blocks), `tools`,
+ * `tool_choice`, and sampling params — none of which the OpenAI-translation
+ * path (openAiToAnthropic) carries.
+ *
+ * Returns the raw Anthropic response body so the consumer reads native content
+ * (tool_use) and the full `usage` object (incl. cache_creation_input_tokens /
+ * cache_read_input_tokens).
+ *
+ * SECURITY: builds a FRESH header set with the PROVIDER key. It NEVER spreads
+ * the incoming request headers — the caller's `x-api-key` is the GATEWAY bearer
+ * token; sending it upstream to Anthropic would 401. Only the two Anthropic
+ * feature headers (`anthropic-version`, `anthropic-beta`) are forwarded.
+ */
+export async function callAnthropicMessagesRaw({
+  providerId,
+  anthropicRequest,
+  model,
+  forwardHeaders = {},
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+}) {
+  if (!anthropicRequest || !Array.isArray(anthropicRequest.messages) || anthropicRequest.messages.length === 0) {
+    throw new Error('anthropic-api: anthropicRequest.messages array is required')
+  }
+
+  const { apiKey, baseUrl } = await loadProviderCreds(providerId)
+  const url = `${baseUrl.replace(/\/$/, '')}/v1/messages`
+
+  // Verbatim forward; override only model + stream, and ensure max_tokens
+  // (Anthropic requires it). The caller's value wins when present.
+  const requestBody = {
+    ...anthropicRequest,
+    model,
+    stream: false,
+    max_tokens: anthropicRequest.max_tokens ?? DEFAULT_MAX_TOKENS,
+  }
+
+  const headers = {
+    'x-api-key': apiKey,
+    'anthropic-version': forwardHeaders.version || '2023-06-01',
+    'Content-Type': 'application/json',
+  }
+  if (forwardHeaders.beta) headers['anthropic-beta'] = forwardHeaders.beta
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const startedAt = Date.now()
+
+  let response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    clearTimeout(timer)
+    const e = new Error(`anthropic-api: network error: ${err.message}`)
+    e.latencyMs = Date.now() - startedAt
+    throw e
+  }
+  clearTimeout(timer)
+
+  const latencyMs = Date.now() - startedAt
+
+  if (!response.ok) {
+    let errText = ''
+    try { errText = await response.text() } catch {}
+    const err = new Error(`anthropic-api: HTTP ${response.status}: ${errText.slice(0, 500)}`)
+    err.status = response.status
+    err.latencyMs = latencyMs
+    throw err
+  }
+
+  const data = await response.json()
+  return {
+    model: data.model || model,
+    raw_response: data,
+    latency_ms: latencyMs,
+    request_tokens: data.usage?.input_tokens ?? null,
+    response_tokens: data.usage?.output_tokens ?? null,
+  }
+}
+
+/**
  * Stream chat completions from Anthropic. Returns an async iterable that
  * yields raw Anthropic event objects:
  *   { type: 'message_start' | 'content_block_delta' | 'message_stop' | ..., ... }
