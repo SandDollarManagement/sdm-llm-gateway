@@ -6,6 +6,46 @@
 
 ---
 
+## State update — 2026-07-03 (governance initialized; stale-doc reconciliation)
+
+**This doc was stale.** Its newest entry below dates from 2026-05-29 ("Phase 2A
+code complete; awaiting verification"), but the repo's last commit is 2026-06-13.
+The sections below this entry are the 2026-05-29 snapshot, kept for the record —
+read them as historical, not current.
+
+**Reconciled from git log only** (deploy/live status NOT verified from here —
+verifying that means checking Coolify/the live endpoint):
+
+- 2026-05-30 — Phase 2B + 2C landed: Anthropic API-key fallback + LiteLLM
+  multi-provider routing (`adbb719`); providers admin UI, per-request keys to
+  LiteLLM (`516b275`).
+- 2026-05-31 — Admin UI shipped across v0.5.x: full CRUD for
+  providers/apps/aliases, logs viewer, dashboard (`d630e55`), logs-page 404
+  root-caused and fixed (`f5ad968`, `e512050`), Settings page (v0.5.4), Usage
+  page with charts (v0.5.5), alias Test button (v0.5.6), CLI stderr surfaced in
+  test results (v0.5.7).
+- 2026-06-01 — **D-021 pivot:** Anthropic API key is primary; OAuth path blocked
+  by Anthropic ToS (v0.5.8, `79ce8eb`). v0.6.0: streaming SSE on
+  `/v1/chat/completions` + Anthropic-compatible `/v1/messages` endpoint
+  (`2c8fc35`).
+- 2026-06-13 — D-022: `/v1/messages` made a faithful Anthropic passthrough
+  (tools + cache_control), merged via PR #1 (`0c7a4a0`). Repo version: v0.6.0.
+
+So the roadmap table below is superseded: phases 2A/2B/2C and the Phase 5 admin
+UI/usage work have code in `main`. What is genuinely unverified from this
+session: deploy state, seed/live-test results, and per-app migration status
+(Phase 6).
+
+**Governance initialized today (2026-07-03):** this project is now Lead-governed —
+canonical-doc map added to `CLAUDE.md` (this file is the current-state +
+build-queue doc), `FEATURE_SPECS.md` / `KNOWN_GAPS.md` / `OPEN_FEATURES.md`
+stubs created, `.claude/councils/` scaffolded, walled memory vault created,
+web-app review subagents installed. No money surface declared (tripwire
+intentionally not armed — see `CLAUDE.md`). Tests/CI are a separately queued
+task, not part of this pass.
+
+---
+
 ## Current State
 
 **Phase:** 2A code complete; awaiting deploy + seed run + first live test

@@ -7,6 +7,46 @@
 
 ---
 
+## Canonical docs (documentation map)
+
+*(Added 2026-07-03 when this project was initialized for /lead governance.)*
+
+Applies the global **Documentation map (canonical docs)** rule in
+`~/.claude/CLAUDE.md`: append findings to the canonical home below; do not spawn a
+new doc for routine work. When the operator says "document this," route it here
+and tell him which doc you used. This project reuses its existing docs where they
+already fill a role:
+
+| Canonical role | This project's doc |
+|---|---|
+| Current state + build queue | `PROJECT_STATE.md` (pre-existing, reused) |
+| Feature intent + verify (`FS-NNN`) | `FEATURE_SPECS.md` |
+| Bugs, gaps, intent-vs-reality delta (`G-NNN`) | `KNOWN_GAPS.md` |
+| Backlog of not-yet-specced ideas (`OF-NNN`) | `OPEN_FEATURES.md` |
+| Decisions owed to operator (`OD-NNN`) | `OPEN_DECISIONS.md` (pre-existing, reused) |
+| Decisions already made (`D-NNN`) | `DECISION_LOG.md` (pre-existing, reused) |
+| Rules | `CLAUDE.md` (this file) |
+
+Routing: new feature intent → FEATURE_SPECS · bug/gap/delta → KNOWN_GAPS ·
+something to build → PROJECT_STATE build queue · backlog idea → OPEN_FEATURES ·
+decision I owe → OPEN_DECISIONS · decision already made → DECISION_LOG.
+
+**No tax/money-number surface here.** This gateway is shared LLM-routing
+infrastructure; the `cost_usd` / `monthly_usage` / per-app budget columns are
+internal ops cost telemetry (spend observability and caps), not books, invoices,
+or filings — the same class as sdm-media-manager's AI-spend cap. So the global
+migration tripwire is intentionally **not armed** for this project: there is no
+`.claude/sensitive-tables.json`, and no `FINANCIAL_CHANGE_LOG.md` role is mapped.
+If the gateway ever grows real money math (billing apps for usage, invoicing),
+add the sensitive-tables stub and the financial-change-log role at that point.
+
+**Shared-infrastructure note:** every other SDM project routes its LLM calls
+through this gateway, so a behavior change here has cross-project blast radius.
+Treat endpoint contracts (`/v1/chat/completions`, `/v1/messages`) and alias
+semantics as cross-entity surface for council purposes.
+
+---
+
 ## Purpose
 
 A single self-hosted gateway that all SDM Software apps (Ops Hub, Media Manager, Gmail Drive Manager, AI Social Posting App, motivational video pipeline, future apps) call instead of hitting LLM providers directly.

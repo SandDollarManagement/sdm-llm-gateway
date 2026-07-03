@@ -54,3 +54,6 @@ docker-compose.override.yml
 # Misc
 .cache/
 .turbo/
+
+# local-only memory MCP mount (machine-specific; do not commit)
+.mcp.json
