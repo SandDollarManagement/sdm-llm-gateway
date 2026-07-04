@@ -1,2 +1,9 @@
+# pnpm 11 treats a package with an un-run build script as a hard error
+# (ERR_PNPM_IGNORED_BUILDS), which fails `pnpm install --frozen-lockfile` in CI on
+# a fresh store. unrs-resolver's build is a native-binding perf optimization with a
+# JS fallback, so it is safe to leave un-run. Approve it (onlyBuiltDependencies) and
+# demote the ignored-build from a hard error to a warning (strictDepBuilds:false) —
+# narrow and safe; we do NOT allow all dependency build scripts to run.
 onlyBuiltDependencies:
   - unrs-resolver
+strictDepBuilds: false
