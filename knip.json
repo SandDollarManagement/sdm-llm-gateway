@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/app/**/{page,layout,route,loading,error,not-found,template,default}.{ts,tsx}",
+    "src/middleware.{ts,js}",
+    "next.config.{js,mjs,ts}",
+    "e2e/**/*.spec.ts",
+    "**/*.config.{ts,js,mjs}"
+  ],
+  "project": ["src/**/*.{ts,tsx,js,jsx}"],
+  "ignoreDependencies": ["@testing-library/jest-dom"]
+}

@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Fast pre-commit gate: format + lint ONLY the staged files.
+# Deliberately does NOT run a repo-wide typecheck/test — those are slow and would
+# hard-block commits on pre-existing/legacy errors. CI enforces typecheck + tests
+# (warn-then-ratchet, see TOOLING_STANDARD.md).
+pnpm exec lint-staged
