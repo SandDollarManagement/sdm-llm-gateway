@@ -9,7 +9,7 @@
 
 ## Canonical docs (documentation map)
 
-*(Added 2026-07-03 when this project was initialized for /lead governance.)*
+_(Added 2026-07-03 when this project was initialized for /lead governance.)_
 
 Applies the global **Documentation map (canonical docs)** rule in
 `~/.claude/CLAUDE.md`: append findings to the canonical home below; do not spawn a
@@ -17,16 +17,16 @@ new doc for routine work. When the operator says "document this," route it here
 and tell him which doc you used. This project reuses its existing docs where they
 already fill a role:
 
-| Canonical role | This project's doc |
-|---|---|
-| Architecture snapshot (routes, tables, agents, env vars) | `SYSTEM_MAP.md` |
-| Current state + build queue | `PROJECT_STATE.md` (pre-existing, reused) |
-| Feature intent + verify (`FS-NNN`) | `FEATURE_SPECS.md` |
-| Bugs, gaps, intent-vs-reality delta (`G-NNN`) | `KNOWN_GAPS.md` |
-| Backlog of not-yet-specced ideas (`OF-NNN`) | `OPEN_FEATURES.md` |
-| Decisions owed to operator (`OD-NNN`) | `OPEN_DECISIONS.md` (pre-existing, reused) |
-| Decisions already made (`D-NNN`) | `DECISION_LOG.md` (pre-existing, reused) |
-| Rules | `CLAUDE.md` (this file) |
+| Canonical role                                           | This project's doc                         |
+| -------------------------------------------------------- | ------------------------------------------ |
+| Architecture snapshot (routes, tables, agents, env vars) | `SYSTEM_MAP.md`                            |
+| Current state + build queue                              | `PROJECT_STATE.md` (pre-existing, reused)  |
+| Feature intent + verify (`FS-NNN`)                       | `FEATURE_SPECS.md`                         |
+| Bugs, gaps, intent-vs-reality delta (`G-NNN`)            | `KNOWN_GAPS.md`                            |
+| Backlog of not-yet-specced ideas (`OF-NNN`)              | `OPEN_FEATURES.md`                         |
+| Decisions owed to operator (`OD-NNN`)                    | `OPEN_DECISIONS.md` (pre-existing, reused) |
+| Decisions already made (`D-NNN`)                         | `DECISION_LOG.md` (pre-existing, reused)   |
+| Rules                                                    | `CLAUDE.md` (this file)                    |
 
 Routing: new feature intent → FEATURE_SPECS · bug/gap/delta → KNOWN_GAPS ·
 something to build → PROJECT_STATE build queue · backlog idea → OPEN_FEATURES ·
@@ -50,10 +50,13 @@ decision I owe → OPEN_DECISIONS · decision already made → DECISION_LOG.
 infrastructure; the `cost_usd` / `monthly_usage` / per-app budget columns are
 internal ops cost telemetry (spend observability and caps), not books, invoices,
 or filings — the same class as sdm-media-manager's AI-spend cap. So the global
-migration tripwire is intentionally **not armed** for this project: there is no
-`.claude/sensitive-tables.json`, and no `FINANCIAL_CHANGE_LOG.md` role is mapped.
+migration tripwire is intentionally **not armed** for this project:
+`.claude/sensitive-tables.json` exists with an **empty** table list (added
+2026-07-05 so coverage is explicit rather than absent — the audit conclusion is
+recorded in that file), and no `FINANCIAL_CHANGE_LOG.md` role is mapped.
 If the gateway ever grows real money math (billing apps for usage, invoicing),
-add the sensitive-tables stub and the financial-change-log role at that point.
+populate the sensitive-tables list and add the financial-change-log role at that
+point.
 
 **Shared-infrastructure note:** every other SDM project routes its LLM calls
 through this gateway, so a behavior change here has cross-project blast radius.
@@ -123,16 +126,16 @@ It exists to solve five problems at once:
 
 ## Tech Stack
 
-| Layer            | Choice                                            | Reason                                                  |
-|------------------|---------------------------------------------------|---------------------------------------------------------|
-| Wrapper service  | Next.js 14 (App Router) + JavaScript              | Matches existing SDM stack (Ops Hub, storyquest, etc.)  |
-| Routing engine   | LiteLLM Proxy (Docker)                            | Mature multi-provider, fallback chains, OpenAI-compat   |
-| Database         | Postgres 16 container in Coolify, via `pg` driver | Matches existing SDM pattern (one Postgres per app)     |
-| Migrations       | Plain SQL files in `migrations/`, run by `node-pg-migrate` or a startup script | Operator preference: no ORM |
-| Deployment       | Coolify on Hetzner VPS (apps server)              | Same pattern as all other SDM services                  |
-| Auth (admin)     | NextAuth + GoogleProvider + `ADMIN_EMAILS` whitelist | Identical to Ops Hub `src/lib/auth.js` pattern        |
-| Auth (apps→GW)   | Bearer token per app, hashed at rest (SHA-256)    | Each app gets its own token; revocable independently    |
-| Observability    | Postgres tables + admin dashboard                 | Dark mode, matches existing SDM dashboard conventions   |
+| Layer           | Choice                                                                         | Reason                                                 |
+| --------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Wrapper service | Next.js 14 (App Router) + JavaScript                                           | Matches existing SDM stack (Ops Hub, storyquest, etc.) |
+| Routing engine  | LiteLLM Proxy (Docker)                                                         | Mature multi-provider, fallback chains, OpenAI-compat  |
+| Database        | Postgres 16 container in Coolify, via `pg` driver                              | Matches existing SDM pattern (one Postgres per app)    |
+| Migrations      | Plain SQL files in `migrations/`, run by `node-pg-migrate` or a startup script | Operator preference: no ORM                            |
+| Deployment      | Coolify on Hetzner VPS (apps server)                                           | Same pattern as all other SDM services                 |
+| Auth (admin)    | NextAuth + GoogleProvider + `ADMIN_EMAILS` whitelist                           | Identical to Ops Hub `src/lib/auth.js` pattern         |
+| Auth (apps→GW)  | Bearer token per app, hashed at rest (SHA-256)                                 | Each app gets its own token; revocable independently   |
+| Observability   | Postgres tables + admin dashboard                                              | Dark mode, matches existing SDM dashboard conventions  |
 
 LiteLLM runs as a Docker container alongside the Next.js service. The Next.js service is the public face; LiteLLM is internal-only (not exposed outside the Coolify network).
 
@@ -150,6 +153,7 @@ LiteLLM runs as a Docker container alongside the Next.js service. The Next.js se
 - **Docker + internal storage** over third-party services.
 - **Dockerfile uses `npm ci`**, not `npm install`.
 - **JavaScript everywhere.** No `.ts` files. No `tsconfig.json`. Match Ops Hub.
+- **Branch retention: delete the branch at merge** (`gh pr merge --squash --delete-branch`); a branch whose PR closed unmerged is kept only while its unmerged work is still worth salvaging.
 
 ---
 
@@ -230,15 +234,16 @@ The `credentials` column is encrypted with AES-256-GCM using `GATEWAY_ENCRYPTION
 
 ## Provider Configuration (V1 set)
 
-| Provider     | Auth methods                          | Why it's in V1                                   |
-|--------------|---------------------------------------|--------------------------------------------------|
-| Anthropic    | OAuth via `claude` CLI child process (`sk-ant-oat01-...`) + API key via direct HTTPS (`sk-ant-api03-...`) | Primary; OAuth path uses Max subscription credit (D-020) |
-| OpenAI       | API key                               | Strongest general fallback; broad model lineup   |
-| Google Gemini| API key                               | Independent infra (GCP); long context, multimodal|
-| xAI Grok     | API key                               | Independent infra; operator preference           |
-| OpenRouter   | API key                               | Meta-provider; access to DeepSeek, Mistral, Llama, etc. via one integration |
+| Provider      | Auth methods                                                                                              | Why it's in V1                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Anthropic     | OAuth via `claude` CLI child process (`sk-ant-oat01-...`) + API key via direct HTTPS (`sk-ant-api03-...`) | Primary; OAuth path uses Max subscription credit (D-020)                    |
+| OpenAI        | API key                                                                                                   | Strongest general fallback; broad model lineup                              |
+| Google Gemini | API key                                                                                                   | Independent infra (GCP); long context, multimodal                           |
+| xAI Grok      | API key                                                                                                   | Independent infra; operator preference                                      |
+| OpenRouter    | API key                                                                                                   | Meta-provider; access to DeepSeek, Mistral, Llama, etc. via one integration |
 
 **Optional / V1.1 candidates** (do not build into V1, but design schema to accept them):
+
 - Groq (fast inference for Llama/Qwen — not to be confused with Grok)
 - AWS Bedrock (if SDM ever runs on AWS)
 - Local Ollama for offline/dev fallback
@@ -251,17 +256,18 @@ Apps never request a specific provider directly. They request a **model alias**,
 
 **Default aliases shipped on first run:**
 
-| Alias            | Intent                                       | Default chain                                                                |
-|------------------|----------------------------------------------|------------------------------------------------------------------------------|
-| `default`        | Balanced general purpose                     | Anthropic Sonnet 4.6 (OAuth) → Anthropic Sonnet 4.6 (API key) → OpenAI GPT-5 → Gemini 2.5 Pro |
-| `reasoning`      | Hard reasoning, long context                 | Anthropic Opus 4.7 (OAuth) → Anthropic Opus 4.7 (API key) → OpenAI o-series → Gemini 2.5 Pro |
-| `fast`           | Cheap, high-volume, latency-sensitive        | Anthropic Haiku 4.5 (OAuth) → Haiku (API key) → GPT-4o-mini → Gemini Flash   |
-| `vision`         | Image understanding                          | Anthropic Sonnet 4.6 (OAuth) → GPT-4o → Gemini 2.5 Pro                       |
-| `bulk-classify`  | High-volume classification (cheap-first)     | OpenRouter (DeepSeek) → GPT-4o-mini → Haiku                                  |
+| Alias           | Intent                                   | Default chain                                                                                 |
+| --------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `default`       | Balanced general purpose                 | Anthropic Sonnet 4.6 (OAuth) → Anthropic Sonnet 4.6 (API key) → OpenAI GPT-5 → Gemini 2.5 Pro |
+| `reasoning`     | Hard reasoning, long context             | Anthropic Opus 4.7 (OAuth) → Anthropic Opus 4.7 (API key) → OpenAI o-series → Gemini 2.5 Pro  |
+| `fast`          | Cheap, high-volume, latency-sensitive    | Anthropic Haiku 4.5 (OAuth) → Haiku (API key) → GPT-4o-mini → Gemini Flash                    |
+| `vision`        | Image understanding                      | Anthropic Sonnet 4.6 (OAuth) → GPT-4o → Gemini 2.5 Pro                                        |
+| `bulk-classify` | High-volume classification (cheap-first) | OpenRouter (DeepSeek) → GPT-4o-mini → Haiku                                                   |
 
 Apps may also accept a per-call alias override (e.g. AI Social Posting App's Image Analyst agent uses `vision`, its Copywriter agent uses `default`). The app's own settings UI controls which alias each agent uses; the gateway just resolves whatever alias arrives.
 
 **Fallback trigger conditions:**
+
 - HTTP 5xx or network error → next in chain
 - HTTP 429 with retry-after > 10s → next in chain
 - HTTP 401/403 → next in chain AND alert operator (credential issue)
@@ -279,17 +285,20 @@ Every fallback logged with reason. Operator can see fallback rate per alias in t
 **The legitimate path:** the official `claude` CLI binary is explicitly permitted on any machine, including a server VPS. Starting 2026-06-15 it draws from a dedicated monthly Agent SDK credit on Max subscriptions. The gateway therefore invokes `claude -p` as a child process for each Anthropic request.
 
 **Setup (one-time, operator runs locally to obtain the token):**
+
 1. Operator runs `claude setup-token` on their workstation (or any machine where `claude` CLI is installed).
 2. Generated OAuth token (prefix `sk-ant-oat01-`) is pasted into Coolify env var `ANTHROPIC_OAUTH_TOKEN` on the `gateway-web` resource.
 3. A provider row exists in `providers` with `auth_type = 'oauth'` for audit/identity, with `credentials` set to an encrypted marker (`env:ANTHROPIC_OAUTH_TOKEN`) — not the token itself.
 4. Token valid for one year. Admin UI (Phase 5) surfaces an expiry warning at 30 days remaining (OD-001).
 
 **Container bootstrap (handled automatically):**
+
 1. `Dockerfile` installs `@anthropic-ai/claude-code` globally so `claude` is on PATH.
 2. `scripts/docker-entrypoint.sh` runs as PID 1 before `node server.js`. It checks for `/app/.claude/.credentials.json`. If missing AND `ANTHROPIC_OAUTH_TOKEN` is set, it writes a credentials JSON from the token. The file is mode 600.
 3. If a Coolify persistent volume is mounted at `/app/.claude`, the credentials survive redeploys.
 
 **Runtime behavior:**
+
 1. Request arrives for an alias whose `fallback_chain` first entry points at the Anthropic provider.
 2. Wrapper calls `src/lib/providers/anthropic-claude-cli.js`, which spawns `claude -p <prompt>` (optionally with `--model`).
 3. Stdout is captured, trimmed, and returned in OpenAI-compatible shape from `/v1/chat/completions`.
@@ -297,7 +306,7 @@ Every fallback logged with reason. Operator can see fallback rate per alias in t
 5. If `claude` exits non-zero or the call times out (60s default), the wrapper falls through to the next entry in the chain (Anthropic API key, then OpenAI, etc., as Phases 2B and 3 land).
 
 **Why this is NOT done through LiteLLM:**
-LiteLLM speaks HTTPS to the Anthropic Messages API. The Messages API rejects OAuth tokens. LiteLLM can still handle every other provider (and an Anthropic *API key* path if added later in Phase 2B), but the OAuth-via-subscription path bypasses LiteLLM entirely.
+LiteLLM speaks HTTPS to the Anthropic Messages API. The Messages API rejects OAuth tokens. LiteLLM can still handle every other provider (and an Anthropic _API key_ path if added later in Phase 2B), but the OAuth-via-subscription path bypasses LiteLLM entirely.
 
 ---
 
@@ -307,28 +316,30 @@ Apps integrate by calling the gateway exactly like they'd call OpenAI:
 
 ```javascript
 // In Ops Hub, Media Manager, etc.
-import OpenAI from "openai";
+import OpenAI from 'openai'
 
 const llm = new OpenAI({
-  apiKey: process.env.SDM_GATEWAY_TOKEN,  // app-specific bearer token
-  baseURL: "https://llm.sanddollarmanagementllc.com/v1",
-});
+  apiKey: process.env.SDM_GATEWAY_TOKEN, // app-specific bearer token
+  baseURL: 'https://llm.sanddollarmanagementllc.com/v1',
+})
 
 const response = await llm.chat.completions.create({
-  model: "default",  // or "reasoning", "fast", "vision", etc. — alias, not real model name
-  messages: [{ role: "user", content: "Hello" }],
-});
+  model: 'default', // or "reasoning", "fast", "vision", etc. — alias, not real model name
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 ```
 
 For apps already coded against the Anthropic SDK, the gateway also exposes `/v1/messages` with Anthropic-compatible request/response shape. Same alias-based model parameter.
 
 **Each app gets:**
+
 - Its own bearer token (created in admin UI under Apps page).
 - Its own default alias.
 - Its own monthly budget cap (optional; if set and exceeded, gateway returns 429 to the app).
 - Its own usage dashboard view.
 
 **Migration steps for an existing app:**
+
 1. Register the app in gateway admin → get bearer token.
 2. Set `SDM_GATEWAY_TOKEN` and `SDM_GATEWAY_URL` env vars in the app's Coolify config.
 3. Replace direct `new Anthropic({ apiKey: ... })` with the gateway-pointed client shown above.
@@ -342,6 +353,7 @@ For apps already coded against the Anthropic SDK, the gateway also exposes `/v1/
 Dark mode, professional, polished. Matches existing SDM dashboard aesthetic.
 
 **Pages:**
+
 1. **Dashboard** — current month spend per provider, OAuth credit burn rate, fallback rate, top-spending apps.
 2. **Providers** — list, add, edit, test connection. Each provider shows enabled state, credential type, last successful call, current month tokens/cost.
 3. **Aliases** — list, add, edit. Drag-to-reorder fallback chain. Test alias button that fires a sample call through the full chain.
@@ -357,6 +369,7 @@ All admin pages are server-side-rendered, gated by NextAuth's `getServerSession(
 ## Observability & Logging
 
 **Logged per call:**
+
 - App ID, alias requested, provider ID and model used, auth method.
 - Token counts (input, output), cost in USD.
 - Latency in ms, HTTP status, error if any.
@@ -364,12 +377,14 @@ All admin pages are server-side-rendered, gated by NextAuth's `getServerSession(
 - Timestamp.
 
 **Not logged by default:**
+
 - Full request body / messages (PII, prompts may be sensitive).
 - Full response body.
 
 Operator can toggle "verbose mode" per app to capture bodies for debugging, with a default 24-hour auto-disable.
 
 **Alerts (V1 keeps these simple, just admin UI notifications; future versions can email/Telegram):**
+
 - OAuth token expiring within 30 days.
 - Provider credential auth failure (401/403).
 - Monthly OAuth credit > 80% consumed.
@@ -403,39 +418,46 @@ Operator can toggle "verbose mode" per app to capture bodies for debugging, with
 ## Build Phases
 
 **Phase 0 — Scaffolding (complete)**
+
 - Repo created, docs drafted, decisions resolved.
 - Three docs corrected on 2026-05-29 after stack mismatch discovery (see D-017, D-018, D-019).
 
 **Phase 1 — Skeleton & Auth (target: 2 days with Claude Code)**
+
 - Next.js 14 (App Router, JavaScript) scaffolded with dark mode admin UI shell.
 - Postgres container provisioned in Coolify; migrations for all six tables applied.
 - NextAuth + Google OAuth + `ADMIN_EMAILS` whitelist working (mirror Ops Hub `src/lib/auth.js`).
 - Empty Providers / Aliases / Apps / Logs / Usage pages with navigation.
 
 **Phase 2 — LiteLLM Integration & Single Provider (target: 1 day)**
+
 - LiteLLM container deployed via docker-compose.
 - One provider end-to-end: Anthropic via API key only.
 - `/v1/chat/completions` endpoint working through the wrapper.
 - Calls logged to `call_logs`.
 
 **Phase 3 — Multi-Provider & Aliases (target: 1-2 days)**
+
 - OpenAI, Gemini, xAI, OpenRouter added to LiteLLM config.
 - Alias resolution logic in wrapper.
 - Default aliases seeded on first run.
 - Fallback chain execution with logging of fallback reason.
 
 **Phase 4 — Anthropic OAuth Path (target: 1 day)**
+
 - OAuth credential storage and encryption.
 - Monthly usage tracker.
 - Hard-cap and soft-cap modes.
 - OAuth-first → API-key fallback verified end-to-end.
 
 **Phase 5 — Admin UI & Usage Dashboard (target: 2 days)**
+
 - All admin pages functional.
 - Usage dashboard with charts.
 - Log browser with filters.
 
 **Phase 6 — Consumer App Migration (target: 1 day per app)**
+
 - Ops Hub migrated first (smallest blast radius for testing).
 - Media Manager second.
 - Gmail Drive Manager third.

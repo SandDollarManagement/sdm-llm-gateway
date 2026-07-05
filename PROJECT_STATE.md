@@ -6,6 +6,31 @@
 
 ---
 
+## State update — 2026-07-05 (tooling standard live; health endpoint; sensitive-tables coverage)
+
+- **Tooling standard is MERGED and live on main** (PR #3, `ecf128a`): vitest +
+  Playwright + prettier + husky/lint-staged + knip + the `Tooling Standard` CI
+  workflow. Gate status per the warn-then-ratchet policy: **build + unit tests
+  BLOCKING; lint / coverage / knip / e2e WARN** (`continue-on-error` in
+  `.github/workflows/tooling-standard.yml`). The earlier PR #2
+  (`chore/tooling-standard` — pnpm/TypeScript approach) was CLOSED as
+  superseded; its remote branch is retained only because it holds unmerged
+  work (never delete unmerged branches).
+- **Unauthenticated liveness endpoint shipped** (this PR): `GET /api/health`
+  (also `GET /health` via rewrite) returns `status`, `uptime_seconds`,
+  `version`, and `checks.database` / `checks.litellm` booleans — no keys, no
+  spend numbers. HTTP 200 when the DB is reachable, 503 when it is not;
+  LiteLLM reachability is informational only. Built for the external watchdog
+  (portfolio loop initiative: gateway was the top unmonitored gap).
+- **Sensitive-tables coverage made explicit**: `.claude/sensitive-tables.json`
+  created with an EMPTY list + recorded audit conclusion (gateway spend columns
+  are ops telemetry, not books/filings). CLAUDE.md stance paragraph updated to
+  match.
+- **Branch retention convention added** to CLAUDE.md Project Conventions:
+  delete branches at merge.
+
+---
+
 ## State update — 2026-07-03 (governance initialized; stale-doc reconciliation)
 
 **This doc was stale.** Its newest entry below dates from 2026-05-29 ("Phase 2A
@@ -106,17 +131,17 @@ If the live test succeeds, Phase 2A is done and Phase 2B (Anthropic API key fall
 
 ## Phase Roadmap
 
-| Phase | Title                              | Estimated effort      | Status        |
-|-------|------------------------------------|------------------------|---------------|
-| 0     | Scaffolding & docs                 | 1 day                  | Complete      |
-| 1     | Skeleton & auth                    | 2 days                 | Complete      |
-| 2A    | Anthropic via claude CLI (single provider) | 0.5 day        | Code complete; awaiting verification |
-| 2B    | Anthropic API key fallback         | 0.5 day                | Not started   |
-| 2C    | LiteLLM container + multi-provider fallback | 1 day         | Not started   |
-| 3     | (subsumed into 2B/2C above)        | —                      | —             |
-| 4     | (subsumed into 2A — OAuth already done) | —                 | —             |
-| 5     | Admin UI & usage dashboard         | 2 days                 | Not started   |
-| 6     | Consumer app migration (per app)   | 1 day × 5 apps         | Not started   |
+| Phase | Title                                       | Estimated effort | Status                               |
+| ----- | ------------------------------------------- | ---------------- | ------------------------------------ |
+| 0     | Scaffolding & docs                          | 1 day            | Complete                             |
+| 1     | Skeleton & auth                             | 2 days           | Complete                             |
+| 2A    | Anthropic via claude CLI (single provider)  | 0.5 day          | Code complete; awaiting verification |
+| 2B    | Anthropic API key fallback                  | 0.5 day          | Not started                          |
+| 2C    | LiteLLM container + multi-provider fallback | 1 day            | Not started                          |
+| 3     | (subsumed into 2B/2C above)                 | —                | —                                    |
+| 4     | (subsumed into 2A — OAuth already done)     | —                | —                                    |
+| 5     | Admin UI & usage dashboard                  | 2 days           | Not started                          |
+| 6     | Consumer app migration (per app)            | 1 day × 5 apps   | Not started                          |
 
 Originally Phase 2 was "LiteLLM + 1 provider via API key", Phase 3 was multi-provider, Phase 4 was Anthropic OAuth. Reordered after D-020 so the operator gets subscription-credit billing first (which is the whole point of the project).
 

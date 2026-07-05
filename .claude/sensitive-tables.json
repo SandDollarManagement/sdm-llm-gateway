@@ -1,0 +1,6 @@
+{
+  "description": "Money/tax/financial table names that the GLOBAL in-session migration & write tripwire (~/.claude/hooks/block-money-tax-migration.js) guards for THIS project. The list is EMPTY on purpose: the gateway was audited 2026-07-05 and has no money-adjacent tables in the books/invoices/filings sense. Its spend-shaped columns (apps.monthly_budget_usd, call_logs.cost_usd/request_tokens/response_tokens, monthly_usage.cost_usd/tokens_in/tokens_out) are internal ops cost TELEMETRY — spend observability and caps, the same class as sdm-media-manager's AI-spend cap — per the documented stance in CLAUDE.md ('No tax/money-number surface here'). This file exists so tripwire coverage is EXPLICIT rather than absent. If the gateway ever grows real money math (billing consumer apps for usage, invoicing, anything that reaches books or filings), populate this list and map a FINANCIAL_CHANGE_LOG.md role at that point.",
+  "tables": [],
+  "release_gated_actions": [],
+  "_release_gated_actions_note": "No category-B instances declared for this project (no irreversible OUTWARD effects land on deploy: the gateway publishes nothing, charges nothing, files nothing). See ~/.claude/lead-architect.md 'The three categories you bring to the operator'. Declare instances here if the gateway ever gains such a surface."
+}
