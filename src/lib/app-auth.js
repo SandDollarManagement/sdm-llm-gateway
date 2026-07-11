@@ -23,16 +23,20 @@ export class AppAuthError extends Error {
 export async function authenticateAppRequest(request) {
   const token = extractToken(request)
   if (!token) {
-    throw new AppAuthError(401, 'Missing bearer token. Use Authorization: Bearer <token> or x-api-key.')
+    throw new AppAuthError(
+      401,
+      'Missing bearer token. Use Authorization: Bearer <token> or x-api-key.',
+    )
   }
 
   const tokenHash = sha256Hex(token)
   const rows = await query(
-    `SELECT id, workspace_id, name, default_alias, monthly_budget_usd, enabled
+    `SELECT id, workspace_id, name, default_alias, monthly_budget_usd, enabled,
+            allowed_aliases, fallback_allowed
        FROM apps
       WHERE token_hash = $1
       LIMIT 1`,
-    [tokenHash]
+    [tokenHash],
   )
   const app = rows[0]
   if (!app) {
@@ -43,8 +47,9 @@ export async function authenticateAppRequest(request) {
   }
 
   // Best-effort last_used_at update; failures here should not block the request.
-  query('UPDATE apps SET last_used_at = now() WHERE id = $1', [app.id])
-    .catch(err => console.warn(`[app-auth] last_used_at update failed for ${app.id}:`, err.message))
+  query('UPDATE apps SET last_used_at = now() WHERE id = $1', [app.id]).catch((err) =>
+    console.warn(`[app-auth] last_used_at update failed for ${app.id}:`, err.message),
+  )
 
   return app
 }

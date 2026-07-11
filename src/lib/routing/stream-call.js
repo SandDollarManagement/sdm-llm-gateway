@@ -8,6 +8,7 @@ import { resolveAlias } from '@/lib/routing/resolve-alias'
 import { streamAnthropicViaApiKey } from '@/lib/providers/anthropic-api'
 import { logCall } from '@/lib/logging'
 import { randomUUID } from 'node:crypto'
+import { enforceAppPolicy, policySnapshot, validateAliasChainPolicy } from '@/lib/routing/policy'
 
 const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -15,22 +16,30 @@ const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001'
  * Pick the first chain entry whose provider is "anthropic api_key" — the
  * only provider currently supported for streaming.
  */
-async function pickStreamableEntry({ aliasName }) {
+async function pickStreamableEntry({ aliasName, app, correlationId }) {
   const { alias, providers } = await resolveAlias({
     workspaceId: WORKSPACE_ID,
     aliasName,
   })
-  const providerById = new Map(providers.map(p => [p.id, p]))
+  validateAliasChainPolicy({ alias, providers })
+  await enforceAppPolicy({ app, alias, workspaceId: WORKSPACE_ID, requestedAlias: aliasName })
+  const providerById = new Map(providers.map((p) => [p.id, p]))
   for (let i = 0; i < alias.fallback_chain.length; i++) {
     const entry = alias.fallback_chain[i]
     const provider = providerById.get(entry.provider_id)
     if (!provider || !provider.enabled) continue
     if (provider.name.toLowerCase() === 'anthropic' && provider.auth_type === 'api_key') {
-      return { alias, provider, entry, position: i }
+      return {
+        alias,
+        provider,
+        entry,
+        position: i,
+        snapshot: policySnapshot({ alias, app, correlationId }),
+      }
     }
   }
   throw new Error(
-    `alias "${aliasName}" has no streamable provider. Streaming currently supports anthropic (api_key) only; add one to the chain.`
+    `alias "${aliasName}" has no streamable provider. Streaming currently supports anthropic (api_key) only; add one to the chain.`,
   )
 }
 
@@ -42,8 +51,18 @@ async function pickStreamableEntry({ aliasName }) {
  *   data: {"id":"chatcmpl-XXX","object":"chat.completion.chunk","choices":[{"delta":{...}}]}\n\n
  *   data: [DONE]\n\n
  */
-export async function* streamChatCompletionsOpenAI({ aliasName, app, messages, abortSignal }) {
-  const { alias, provider, entry } = await pickStreamableEntry({ aliasName })
+export async function* streamChatCompletionsOpenAI({
+  aliasName,
+  app,
+  messages,
+  correlationId = null,
+  abortSignal,
+}) {
+  const { alias, provider, entry, snapshot } = await pickStreamableEntry({
+    aliasName,
+    app,
+    correlationId,
+  })
   const completionId = `chatcmpl-${randomUUID()}`
   const created = Math.floor(Date.now() / 1000)
   const startedAt = Date.now()
@@ -66,7 +85,10 @@ export async function* streamChatCompletionsOpenAI({ aliasName, app, messages, a
         inputTokens = evt.message.usage?.input_tokens ?? inputTokens
         if (!firstChunkSent) {
           firstChunkSent = true
-          yield formatChunk(completionId, created, alias.name, resolvedModel, { role: 'assistant', content: '' })
+          yield formatChunk(completionId, created, alias.name, resolvedModel, {
+            role: 'assistant',
+            content: '',
+          })
         }
       } else if (evt.event === 'content_block_delta' && evt.delta?.type === 'text_delta') {
         const text = evt.delta.text || ''
@@ -102,6 +124,8 @@ export async function* streamChatCompletionsOpenAI({ aliasName, app, messages, a
       status: errored ? 500 : 200,
       error: errored ? errored.message?.slice(0, 1000) : null,
       fallbackPosition: 0,
+      correlationId,
+      policySnapshot: snapshot,
     })
   }
 }
@@ -128,8 +152,20 @@ function formatChunk(id, created, aliasName, model, delta, finishReason = null) 
  * Stream in Anthropic-native SSE format, passing events through almost
  * untouched. Used by /v1/messages.
  */
-export async function* streamMessagesAnthropic({ aliasName, app, messages, system, maxTokens, abortSignal }) {
-  const { alias, provider, entry } = await pickStreamableEntry({ aliasName })
+export async function* streamMessagesAnthropic({
+  aliasName,
+  app,
+  messages,
+  system,
+  maxTokens,
+  correlationId = null,
+  abortSignal,
+}) {
+  const { alias, provider, entry, snapshot } = await pickStreamableEntry({
+    aliasName,
+    app,
+    correlationId,
+  })
   const startedAt = Date.now()
   let inputTokens = null
   let outputTokens = null
@@ -140,9 +176,7 @@ export async function* streamMessagesAnthropic({ aliasName, app, messages, syste
     // For /v1/messages the caller already gave us Anthropic-shape input.
     // streamAnthropicViaApiKey accepts our OpenAI-style messages, so convert
     // the system + messages back into something it understands.
-    const merged = system
-      ? [{ role: 'system', content: system }, ...messages]
-      : messages
+    const merged = system ? [{ role: 'system', content: system }, ...messages] : messages
 
     for await (const evt of streamAnthropicViaApiKey({
       providerId: provider.id,
@@ -178,6 +212,8 @@ export async function* streamMessagesAnthropic({ aliasName, app, messages, syste
       status: errored ? 500 : 200,
       error: errored ? errored.message?.slice(0, 1000) : null,
       fallbackPosition: 0,
+      correlationId,
+      policySnapshot: snapshot,
     })
   }
 }

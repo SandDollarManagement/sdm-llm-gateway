@@ -5,11 +5,16 @@ import { Plus, Pencil, Trash2, KeyRound, AlertCircle, CheckCircle2 } from 'lucid
 import clsx from 'clsx'
 
 const PROVIDER_OPTIONS = [
-  { name: 'anthropic',  label: 'Anthropic (API key)',  auth_type: 'api_key', placeholder: 'sk-ant-api03-...' },
-  { name: 'openai',     label: 'OpenAI',               auth_type: 'api_key', placeholder: 'sk-...' },
-  { name: 'gemini',     label: 'Google Gemini',        auth_type: 'api_key', placeholder: 'AIza...' },
-  { name: 'xai-grok',   label: 'xAI Grok',             auth_type: 'api_key', placeholder: 'xai-...' },
-  { name: 'openrouter', label: 'OpenRouter',           auth_type: 'api_key', placeholder: 'sk-or-...' },
+  {
+    name: 'anthropic',
+    label: 'Anthropic (API key)',
+    auth_type: 'api_key',
+    placeholder: 'sk-ant-api03-...',
+  },
+  { name: 'openai', label: 'OpenAI', auth_type: 'api_key', placeholder: 'sk-...' },
+  { name: 'gemini', label: 'Google Gemini', auth_type: 'api_key', placeholder: 'AIza...' },
+  { name: 'xai-grok', label: 'xAI Grok', auth_type: 'api_key', placeholder: 'xai-...' },
+  { name: 'openrouter', label: 'OpenRouter', auth_type: 'api_key', placeholder: 'sk-or-...' },
 ]
 
 export default function ProvidersClient({ initialProviders }) {
@@ -64,7 +69,12 @@ export default function ProvidersClient({ initialProviders }) {
   }
 
   async function handleDelete(id, name) {
-    if (!confirm(`Delete provider "${name}"? This is permanent. Aliases that reference it will break until you reconfigure them.`)) return
+    if (
+      !confirm(
+        `Delete provider "${name}"? This is permanent. Aliases that reference it will break until you reconfigure them.`,
+      )
+    )
+      return
     const res = await fetch(`/api/admin/providers/${id}`, { method: 'DELETE' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -83,7 +93,7 @@ export default function ProvidersClient({ initialProviders }) {
             'flex items-center gap-3 px-4 py-3 rounded-lg border',
             banner.kind === 'error'
               ? 'bg-danger/10 border-danger/40 text-danger'
-              : 'bg-success/10 border-success/40 text-success'
+              : 'bg-success/10 border-success/40 text-success',
           )}
         >
           {banner.kind === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
@@ -93,11 +103,12 @@ export default function ProvidersClient({ initialProviders }) {
 
       <div className="flex justify-between items-center">
         <p className="text-sm text-muted">
-          Provider credentials are encrypted at rest with <code>GATEWAY_ENCRYPTION_KEY</code> and passed per-request to the underlying provider.
-          Adding or rotating a key here updates the gateway immediately — no Coolify, no redeploy.
+          Provider credentials are encrypted at rest with <code>GATEWAY_ENCRYPTION_KEY</code> and
+          passed per-request to the underlying provider. Adding or rotating a key here updates the
+          gateway immediately — no Coolify, no redeploy.
         </p>
         <button
-          onClick={() => setShowAddForm(v => !v)}
+          onClick={() => setShowAddForm((v) => !v)}
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand hover:bg-brand-light text-white text-sm font-medium transition-colors shrink-0"
         >
           <Plus size={16} />
@@ -105,12 +116,7 @@ export default function ProvidersClient({ initialProviders }) {
         </button>
       </div>
 
-      {showAddForm && (
-        <AddForm
-          onCancel={() => setShowAddForm(false)}
-          onSubmit={handleCreate}
-        />
-      )}
+      {showAddForm && <AddForm onCancel={() => setShowAddForm(false)} onSubmit={handleCreate} />}
 
       <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
         <table className="w-full text-sm">
@@ -127,22 +133,30 @@ export default function ProvidersClient({ initialProviders }) {
             {providers.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted text-sm">
-                  No providers yet. Click "Add Provider" to add OpenAI, Gemini, Grok, etc.
+                  No providers yet. Click &quot;Add Provider&quot; to add OpenAI, Gemini, Grok, etc.
                 </td>
               </tr>
             )}
-            {providers.map(p => (
+            {providers.map((p) => (
               <tr key={p.id} className="border-b border-border last:border-0">
                 <td className="px-4 py-3 font-medium">{p.name}</td>
                 <td className="px-4 py-3 text-muted">
-                  {p.auth_type === 'oauth'
-                    ? <span title="OAuth token (Anthropic Max plan, managed in Coolify env)">oauth (env)</span>
-                    : 'api_key'}
+                  {p.auth_type === 'oauth' ? (
+                    <span title="OAuth token (Anthropic Max plan, managed in Coolify env)">
+                      oauth (env)
+                    </span>
+                  ) : (
+                    'api_key'
+                  )}
                 </td>
                 <td className="px-4 py-3">
-                  {p.enabled
-                    ? <span className="inline-flex items-center gap-1.5 text-success"><CheckCircle2 size={14} /> enabled</span>
-                    : <span className="inline-flex items-center gap-1.5 text-muted">disabled</span>}
+                  {p.enabled ? (
+                    <span className="inline-flex items-center gap-1.5 text-success">
+                      <CheckCircle2 size={14} /> enabled
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-muted">disabled</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-muted text-xs">
                   {new Date(p.updated_at).toLocaleString()}
@@ -177,9 +191,9 @@ export default function ProvidersClient({ initialProviders }) {
         {editingId && (
           <div className="border-t border-border bg-surface-secondary px-4 py-4">
             <EditForm
-              provider={providers.find(p => p.id === editingId)}
+              provider={providers.find((p) => p.id === editingId)}
               onCancel={() => setEditingId(null)}
-              onSubmit={updates => handleUpdate(editingId, updates)}
+              onSubmit={(updates) => handleUpdate(editingId, updates)}
             />
           </div>
         )}
@@ -193,7 +207,7 @@ function AddForm({ onCancel, onSubmit }) {
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
 
-  const opt = PROVIDER_OPTIONS.find(o => o.name === selectedName) || PROVIDER_OPTIONS[0]
+  const opt = PROVIDER_OPTIONS.find((o) => o.name === selectedName) || PROVIDER_OPTIONS[0]
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -216,11 +230,13 @@ function AddForm({ onCancel, onSubmit }) {
         <label className="block text-xs uppercase tracking-wide text-muted mb-1.5">Provider</label>
         <select
           value={selectedName}
-          onChange={e => setSelectedName(e.target.value)}
+          onChange={(e) => setSelectedName(e.target.value)}
           className="w-full bg-surface-tertiary border border-border rounded-md px-3 py-2 text-sm"
         >
-          {PROVIDER_OPTIONS.map(o => (
-            <option key={o.name} value={o.name}>{o.label}</option>
+          {PROVIDER_OPTIONS.map((o) => (
+            <option key={o.name} value={o.name}>
+              {o.label}
+            </option>
           ))}
         </select>
       </div>
@@ -230,23 +246,25 @@ function AddForm({ onCancel, onSubmit }) {
         <input
           type="password"
           value={apiKey}
-          onChange={e => setApiKey(e.target.value)}
+          onChange={(e) => setApiKey(e.target.value)}
           placeholder={opt.placeholder}
           autoComplete="off"
           required
           className="w-full bg-surface-tertiary border border-border rounded-md px-3 py-2 text-sm font-mono"
         />
         <p className="text-xs text-muted mt-1">
-          Stored encrypted in the database. You won't see it again after saving.
+          Stored encrypted in the database. You will not see it again after saving.
         </p>
       </div>
 
       <div>
-        <label className="block text-xs uppercase tracking-wide text-muted mb-1.5">Base URL (optional)</label>
+        <label className="block text-xs uppercase tracking-wide text-muted mb-1.5">
+          Base URL (optional)
+        </label>
         <input
           type="text"
           value={baseUrl}
-          onChange={e => setBaseUrl(e.target.value)}
+          onChange={(e) => setBaseUrl(e.target.value)}
           placeholder="Leave blank for the provider's default"
           className="w-full bg-surface-tertiary border border-border rounded-md px-3 py-2 text-sm font-mono"
         />
@@ -284,7 +302,9 @@ function EditForm({ provider, onCancel, onSubmit }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="text-sm font-medium">Edit {provider.name} ({provider.auth_type})</div>
+      <div className="text-sm font-medium">
+        Edit {provider.name} ({provider.auth_type})
+      </div>
 
       <div>
         <label className="block text-xs uppercase tracking-wide text-muted mb-1.5">
@@ -293,7 +313,7 @@ function EditForm({ provider, onCancel, onSubmit }) {
         <input
           type="password"
           value={apiKey}
-          onChange={e => setApiKey(e.target.value)}
+          onChange={(e) => setApiKey(e.target.value)}
           placeholder="Paste new key, or leave blank"
           autoComplete="off"
           className="w-full bg-surface-tertiary border border-border rounded-md px-3 py-2 text-sm font-mono"
@@ -301,17 +321,24 @@ function EditForm({ provider, onCancel, onSubmit }) {
       </div>
 
       <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={e => setEnabled(e.target.checked)}
-        />
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
         <span>Enabled</span>
       </label>
 
       <div className="flex gap-2 justify-end pt-1">
-        <button type="button" onClick={onCancel} className="px-3 py-2 text-sm text-muted hover:text-text-primary">Cancel</button>
-        <button type="submit" className="px-4 py-2 rounded-md bg-brand hover:bg-brand-light text-white text-sm font-medium">Save</button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-3 py-2 text-sm text-muted hover:text-text-primary"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 rounded-md bg-brand hover:bg-brand-light text-white text-sm font-medium"
+        >
+          Save
+        </button>
       </div>
     </form>
   )

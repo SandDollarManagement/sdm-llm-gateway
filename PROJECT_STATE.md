@@ -6,165 +6,96 @@
 
 ---
 
-## State update — 2026-07-05 (tooling standard live; health endpoint; sensitive-tables coverage)
+## State update — 2026-07-11 (Document Vault shared provider layer)
 
-- **Tooling standard is MERGED and live on main** (PR #3, `ecf128a`): vitest +
-  Playwright + prettier + husky/lint-staged + knip + the `Tooling Standard` CI
-  workflow. Gate status per the warn-then-ratchet policy: **build + unit tests
-  BLOCKING; lint / coverage / knip / e2e WARN** (`continue-on-error` in
-  `.github/workflows/tooling-standard.yml`). The earlier PR #2
-  (`chore/tooling-standard` — pnpm/TypeScript approach) was CLOSED as
-  superseded; its remote branch is retained only because it holds unmerged
-  work (never delete unmerged branches).
-- **Unauthenticated liveness endpoint shipped** (this PR): `GET /api/health`
-  (also `GET /health` via rewrite) returns `status`, `uptime_seconds`,
-  `version`, and `checks.database` / `checks.litellm` booleans — no keys, no
-  spend numbers. HTTP 200 when the DB is reachable, 503 when it is not;
-  LiteLLM reachability is informational only. Built for the external watchdog
-  (portfolio loop initiative: gateway was the top unmonitored gap).
-- **Sensitive-tables coverage made explicit**: `.claude/sensitive-tables.json`
-  created with an EMPTY list + recorded audit conclusion (gateway spend columns
-  are ops telemetry, not books/filings). CLAUDE.md stance paragraph updated to
-  match.
-- **Branch retention convention added** to CLAUDE.md Project Conventions:
-  delete branches at merge.
-
----
-
-## State update — 2026-07-03 (governance initialized; stale-doc reconciliation)
-
-**This doc was stale.** Its newest entry below dates from 2026-05-29 ("Phase 2A
-code complete; awaiting verification"), but the repo's last commit is 2026-06-13.
-The sections below this entry are the 2026-05-29 snapshot, kept for the record —
-read them as historical, not current.
-
-**Reconciled from git log only** (deploy/live status NOT verified from here —
-verifying that means checking Coolify/the live endpoint):
-
-- 2026-05-30 — Phase 2B + 2C landed: Anthropic API-key fallback + LiteLLM
-  multi-provider routing (`adbb719`); providers admin UI, per-request keys to
-  LiteLLM (`516b275`).
-- 2026-05-31 — Admin UI shipped across v0.5.x: full CRUD for
-  providers/apps/aliases, logs viewer, dashboard (`d630e55`), logs-page 404
-  root-caused and fixed (`f5ad968`, `e512050`), Settings page (v0.5.4), Usage
-  page with charts (v0.5.5), alias Test button (v0.5.6), CLI stderr surfaced in
-  test results (v0.5.7).
-- 2026-06-01 — **D-021 pivot:** Anthropic API key is primary; OAuth path blocked
-  by Anthropic ToS (v0.5.8, `79ce8eb`). v0.6.0: streaming SSE on
-  `/v1/chat/completions` + Anthropic-compatible `/v1/messages` endpoint
-  (`2c8fc35`).
-- 2026-06-13 — D-022: `/v1/messages` made a faithful Anthropic passthrough
-  (tools + cache_control), merged via PR #1 (`0c7a4a0`). Repo version: v0.6.0.
-
-So the roadmap table below is superseded: phases 2A/2B/2C and the Phase 5 admin
-UI/usage work have code in `main`. What is genuinely unverified from this
-session: deploy state, seed/live-test results, and per-app migration status
-(Phase 6).
-
-**Governance initialized today (2026-07-03):** this project is now Lead-governed —
-canonical-doc map added to `CLAUDE.md` (this file is the current-state +
-build-queue doc), `FEATURE_SPECS.md` / `KNOWN_GAPS.md` / `OPEN_FEATURES.md`
-stubs created, `.claude/councils/` scaffolded, walled memory vault created,
-web-app review subagents installed. No money surface declared (tripwire
-intentionally not armed — see `CLAUDE.md`). Tests/CI are a separately queued
-task, not part of this pass.
+- **Gateway alias/policy layer built:** Added `FS-001` support for Document
+  Vault and future SDM apps. New first-class aliases are seeded for
+  `doc-answer`, `doc-summarize`, `doc-rerank`, `doc-embed`, `vision-ocr`,
+  `fast-classify`, and `local-private`, with capability metadata, fallback
+  policy, local/cloud eligibility, retention notes, priority, and embedding
+  dimension/family/version where needed.
+- **Per-app controls built:** Apps now support allowed-alias lists and
+  fallback permission in addition to existing enabled state and monthly budget
+  cap. Routing enforces these policies before provider calls.
+- **Fallback safety built:** Provider fallback now respects alias/app policy,
+  local-only aliases reject cloud providers, and embedding aliases reject
+  fallback entries with incompatible vector dimensions.
+- **Correlation and visibility built:** App-supplied correlation IDs are
+  accepted from headers/body metadata, written to call logs, returned in
+  OpenAI-compatible response metadata and response headers where practical, and
+  visible/filterable in the Logs UI. Raw document content is still not logged by
+  default.
+- **Admin surfaces updated:** Aliases UI exposes metadata/policy fields. Apps UI
+  exposes allowed aliases and fallback permission. Logs UI exposes correlation
+  IDs.
+- **LiteLLM config updated:** Added model entries for
+  `openai-text-embedding-3-small` and `local-private-llama` so provider chains
+  have stable model names for embedding/local routing once providers are
+  configured.
+- **Embeddings endpoint added:** `/v1/embeddings` accepts a gateway alias,
+  enforces embedding capability metadata, routes through LiteLLM, and returns
+  OpenAI-compatible embedding responses with gateway metadata.
 
 ---
 
 ## Current State
 
-**Phase:** 2A code complete; awaiting deploy + seed run + first live test
-**Status:** Gateway is live with Phase 1 (auth + admin shell). Phase 2A code written: claude CLI installed in Docker image, entrypoint hydrates credentials from `ANTHROPIC_OAUTH_TOKEN`, Anthropic-via-`claude -p` provider wrapper, alias routing, `/v1/chat/completions` endpoint, per-app bearer-token auth, call logging, seed script for test app.
-**Version:** v0.2.0-pre (Phase 2A awaiting verification)
+**Phase:** Shared gateway provider layer implementation complete in working tree.
+**Status:** Code and canonical docs updated; lint, unit tests, and production
+build pass locally.
+**Version:** Still `0.6.0`; no version bump done in this slice.
 
 ---
 
 ## Last Action Taken
 
-- 2026-05-29 — Phase 2A built:
-  - **Critical architectural pivot logged as D-020.** Verified that Anthropic disallows OAuth tokens against the Messages API (Feb 2026 ToS update + sustained 401 "OAuth authentication is currently not supported"). The Max plan credit path is the official `claude` CLI binary, which Anthropic permits on any VPS. D-005 narrative updated.
-  - `Dockerfile`: installs `@anthropic-ai/claude-code` globally, sets `HOME=/app`, copies and runs `scripts/docker-entrypoint.sh` as PID 1.
-  - `scripts/docker-entrypoint.sh`: writes `/app/.claude/.credentials.json` from `ANTHROPIC_OAUTH_TOKEN` if not already present, then execs the Next.js server. Idempotent for persistent-volume setups.
-  - `src/lib/app-auth.js`: bearer token auth via SHA-256 hash lookup against `apps.token_hash`, supports `Authorization: Bearer` and `x-api-key` headers.
-  - `src/lib/providers/anthropic-claude-cli.js`: spawns `claude -p <prompt>` with optional `--model`, captures stdout, returns OpenAI-compatible structure. 60s timeout.
-  - `src/lib/routing/{resolve-alias,execute-call}.js`: alias-to-chain resolution and per-chain-entry execution with logging.
-  - `src/lib/logging.js`: write-only `call_logs` insert with safe failure mode (logging errors never break the request).
-  - `src/app/api/v1/chat/completions/route.js`: public OpenAI-compatible endpoint. Node runtime (not Edge) because of `spawn`.
-  - `scripts/seed-phase2a.js`: idempotent seed that inserts the Anthropic provider, creates one test app with a freshly generated bearer token (printed once), and populates the `default` alias's `fallback_chain`.
-  - `CLAUDE.md` and `.env.example` updated for the Path A design.
+- Added migration `008_gateway_alias_policy.sql`.
+- Added shared routing policy enforcement in `src/lib/routing/policy.js` and
+  embedding routing in `src/lib/routing/execute-embedding.js`.
+- Updated alias resolution, non-streaming execution, streaming execution, app
+  auth, logging, OpenAI-compatible route, Anthropic-compatible route, admin APIs,
+  and admin UI components.
+- Added unit tests for alias resolution, fallback behavior, policy enforcement,
+  embedding compatibility, missing credentials, and correlation logging.
+- Logged architecture decision `D-023` and feature spec `FS-001`.
 
 ---
 
 ## Blockers
 
-For the live test to succeed, two things still need to happen on the operator side after the push:
-
-1. **Set `ANTHROPIC_OAUTH_TOKEN` in Coolify env vars** on `gateway-web`. Use the OAuth token from `claude setup-token`.
-2. **(Optional but recommended) Mount a Coolify persistent volume at `/app/.claude`** on `gateway-web`. Without this, the credentials file gets rewritten on every redeploy — still works, but you lose any token refresh the CLI may have performed.
-
-After the rebuild deploys, run inside the `gateway-web` container terminal:
-
-```
-node scripts/seed-phase2a.js
-```
-
-That prints the test app's bearer token. Save it; the database only retains the SHA-256 hash.
-
-Then test from anywhere:
-
-```
-curl -X POST https://llm.sanddollarmanagementllc.com/v1/chat/completions \
-  -H "Authorization: Bearer <token-from-seed>" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"default","messages":[{"role":"user","content":"Say hi in 5 words."}]}'
-```
-
-Expected response: a JSON `chat.completion` object with a real Claude reply in `choices[0].message.content`, billed against the Max plan subscription credit.
+None from the operator. Live provider chains still need actual provider rows and
+model choices configured in the admin UI before Document Vault can send
+production traffic through the new aliases.
 
 ---
 
 ## Next Decision Needed
 
-If the live test succeeds, Phase 2A is done and Phase 2B (Anthropic API key fallback) is queued. If it fails, paste the error back and we iterate on whichever piece broke (claude CLI auth, child-process invocation, alias chain, etc.).
+None. Technical implementation choices are made. Next work is operational:
+configure provider chains for the new aliases and migrate Document Vault to call
+gateway aliases instead of direct provider models.
 
 ---
 
-## Phase Roadmap
+## Build Queue
 
-| Phase | Title                                       | Estimated effort | Status                               |
-| ----- | ------------------------------------------- | ---------------- | ------------------------------------ |
-| 0     | Scaffolding & docs                          | 1 day            | Complete                             |
-| 1     | Skeleton & auth                             | 2 days           | Complete                             |
-| 2A    | Anthropic via claude CLI (single provider)  | 0.5 day          | Code complete; awaiting verification |
-| 2B    | Anthropic API key fallback                  | 0.5 day          | Not started                          |
-| 2C    | LiteLLM container + multi-provider fallback | 1 day            | Not started                          |
-| 3     | (subsumed into 2B/2C above)                 | —                | —                                    |
-| 4     | (subsumed into 2A — OAuth already done)     | —                | —                                    |
-| 5     | Admin UI & usage dashboard                  | 2 days           | Not started                          |
-| 6     | Consumer app migration (per app)            | 1 day × 5 apps   | Not started                          |
-
-Originally Phase 2 was "LiteLLM + 1 provider via API key", Phase 3 was multi-provider, Phase 4 was Anthropic OAuth. Reordered after D-020 so the operator gets subscription-credit billing first (which is the whole point of the project).
+1. Apply migration `008_gateway_alias_policy.sql` in the deployed Postgres
+   database.
+2. Configure provider chains for the seven Document Vault aliases in the gateway
+   admin UI.
+3. Migrate Document Vault to use `SDM_GATEWAY_TOKEN`,
+   `SDM_GATEWAY_URL`, and gateway alias names.
 
 ---
 
 ## Risk Register
 
-1. **Anthropic OAuth policy drift.** Already triggered once (D-020). API key path remains first-class.
-2. **`claude` CLI credentials schema.** The credentials JSON format written by `docker-entrypoint.sh` is a best-effort match for what `claude setup-token` produces; if Anthropic changes the schema we'll see auth failures and need to update the entrypoint. Quick fix is to mount a persistent volume and run `claude setup-token` interactively once inside the container.
-3. **LiteLLM maintenance.** Phase 2C onward.
-4. **`GATEWAY_ENCRYPTION_KEY` loss.** Catastrophic if lost. Lives only in Coolify env vars (D-016 backup deferred at operator request).
-5. **OAuth token expiry surprise.** OD-001 reminder mechanism resolves this in Phase 5 admin UI.
-6. **Cost overrun on overflow billing.** Per-app monthly budget caps mitigate (Phase 5).
-7. **Stack drift between docs and reality.** Verify against actual code; do not reconstruct from prior-session docs.
-
----
-
-## Open Questions Not Yet Tracked
-
-- _(none currently)_
-
----
-
-## Session Handoff Notes
-
-Phase 2A code is on disk and ready to commit. Push sequence: `git add . && git commit -m "Phase 2A: Anthropic via claude CLI (D-020 pivot)" && git push`. Coolify rebuilds, operator adds `ANTHROPIC_OAUTH_TOKEN` env var, optionally mounts the persistent volume at `/app/.claude`, runs the seed script, saves the test app bearer token, hits the endpoint with curl. If anything fails on the way, paste back and we iterate.
+1. **Rerank endpoint coverage:** This slice establishes the `doc-rerank` alias
+   and policy metadata, but no separate rerank-specific public endpoint exists
+   yet. If Document Vault needs a dedicated rerank API instead of a
+   generation/structured call, that is the next implementation slice.
+2. **Live provider-chain setup:** Seeded aliases intentionally have empty chains
+   until providers are configured. Calls to empty aliases return clear errors.
+3. **Generated system map stale:** `SYSTEM_MAP.md` is generated-only and now
+   needs regeneration by the project meta-orchestrator after this build because
+   tables, routes, and admin surfaces changed.

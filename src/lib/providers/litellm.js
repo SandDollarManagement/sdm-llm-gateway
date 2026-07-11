@@ -33,13 +33,14 @@ export async function callViaLiteLLM({
   const masterKey = process.env.LITELLM_MASTER_KEY
   if (!internalUrl) throw new Error('LITELLM_INTERNAL_URL is not set')
   if (!masterKey) throw new Error('LITELLM_MASTER_KEY is not set')
-  if (!model) throw new Error('litellm: a model name is required (the LiteLLM model_name from config)')
+  if (!model)
+    throw new Error('litellm: a model name is required (the LiteLLM model_name from config)')
 
   const url = `${internalUrl.replace(/\/$/, '')}/v1/chat/completions`
 
   const requestBody = { model, messages }
-  if (apiKey) requestBody.api_key = apiKey      // LiteLLM accepts per-request key override
-  if (baseUrl) requestBody.api_base = baseUrl   // LiteLLM accepts per-request base url override
+  if (apiKey) requestBody.api_key = apiKey // LiteLLM accepts per-request key override
+  if (baseUrl) requestBody.api_base = baseUrl // LiteLLM accepts per-request base url override
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -68,7 +69,9 @@ export async function callViaLiteLLM({
 
   if (!response.ok) {
     let errText = ''
-    try { errText = await response.text() } catch {}
+    try {
+      errText = await response.text()
+    } catch {}
     const err = new Error(`litellm: HTTP ${response.status}: ${errText.slice(0, 500)}`)
     err.status = response.status
     err.latencyMs = latencyMs
@@ -86,5 +89,69 @@ export async function callViaLiteLLM({
     latency_ms: latencyMs,
     request_tokens: data?.usage?.prompt_tokens ?? null,
     response_tokens: data?.usage?.completion_tokens ?? null,
+  }
+}
+
+export async function callEmbeddingsViaLiteLLM({
+  input,
+  model,
+  apiKey,
+  baseUrl,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+}) {
+  const internalUrl = process.env.LITELLM_INTERNAL_URL
+  const masterKey = process.env.LITELLM_MASTER_KEY
+  if (!internalUrl) throw new Error('LITELLM_INTERNAL_URL is not set')
+  if (!masterKey) throw new Error('LITELLM_MASTER_KEY is not set')
+  if (!model)
+    throw new Error('litellm: a model name is required (the LiteLLM model_name from config)')
+
+  const url = `${internalUrl.replace(/\/$/, '')}/v1/embeddings`
+  const requestBody = { model, input }
+  if (apiKey) requestBody.api_key = apiKey
+  if (baseUrl) requestBody.api_base = baseUrl
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const startedAt = Date.now()
+
+  let response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${masterKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    clearTimeout(timer)
+    const e = new Error(`litellm embeddings: network error talking to ${url}: ${err.message}`)
+    e.latencyMs = Date.now() - startedAt
+    throw e
+  }
+  clearTimeout(timer)
+
+  const latencyMs = Date.now() - startedAt
+  if (!response.ok) {
+    let errText = ''
+    try {
+      errText = await response.text()
+    } catch {}
+    const err = new Error(`litellm embeddings: HTTP ${response.status}: ${errText.slice(0, 500)}`)
+    err.status = response.status
+    err.latencyMs = latencyMs
+    throw err
+  }
+
+  const data = await response.json()
+  return {
+    raw_response: data,
+    model: data?.model || model,
+    latency_ms: latencyMs,
+    request_tokens: data?.usage?.prompt_tokens ?? data?.usage?.total_tokens ?? null,
+    response_tokens: 0,
   }
 }

@@ -13,20 +13,26 @@ export const runtime = 'nodejs'
 const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001'
 
 export async function PATCH(request, { params }) {
-  try { await requireAdmin() } catch (e) {
-    if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status })
+  try {
+    await requireAdmin()
+  } catch (e) {
+    if (e instanceof AdminAuthError)
+      return NextResponse.json({ error: e.message }, { status: e.status })
     throw e
   }
 
   const id = params.id
   let body
-  try { body = await request.json() }
-  catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-  const existing = await queryOne(
-    `SELECT id FROM apps WHERE id = $1 AND workspace_id = $2`,
-    [id, WORKSPACE_ID]
-  )
+  const existing = await queryOne(`SELECT id FROM apps WHERE id = $1 AND workspace_id = $2`, [
+    id,
+    WORKSPACE_ID,
+  ])
   if (!existing) return NextResponse.json({ error: 'App not found' }, { status: 404 })
 
   const updates = []
@@ -44,7 +50,10 @@ export async function PATCH(request, { params }) {
   if (body.monthly_budget_usd != null) {
     const n = Number(body.monthly_budget_usd)
     if (isNaN(n) || n < 0) {
-      return NextResponse.json({ error: 'monthly_budget_usd must be a non-negative number' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'monthly_budget_usd must be a non-negative number' },
+        { status: 400 },
+      )
     }
     updates.push(`monthly_budget_usd = $${p++}`)
     args.push(n)
@@ -56,29 +65,46 @@ export async function PATCH(request, { params }) {
     updates.push(`enabled = $${p++}`)
     args.push(body.enabled)
   }
+  if (Array.isArray(body.allowed_aliases)) {
+    updates.push(`allowed_aliases = $${p++}`)
+    args.push(body.allowed_aliases.map((a) => String(a).trim()).filter(Boolean))
+  }
+  if (body.allowed_aliases === null) {
+    updates.push(`allowed_aliases = NULL`)
+  }
+  if (typeof body.fallback_allowed === 'boolean') {
+    updates.push(`fallback_allowed = $${p++}`)
+    args.push(body.fallback_allowed)
+  }
   if (updates.length === 0) {
     return NextResponse.json({ error: 'No fields to update.' }, { status: 400 })
   }
 
   args.push(id, WORKSPACE_ID)
-  const row = (await query(
-    `UPDATE apps SET ${updates.join(', ')} WHERE id = $${p++} AND workspace_id = $${p}
-     RETURNING id, name, default_alias, monthly_budget_usd, enabled, created_at, last_used_at`,
-    args
-  ))[0]
+  const row = (
+    await query(
+      `UPDATE apps SET ${updates.join(', ')} WHERE id = $${p++} AND workspace_id = $${p}
+     RETURNING id, name, default_alias, monthly_budget_usd, enabled,
+       allowed_aliases, fallback_allowed, created_at, last_used_at`,
+      args,
+    )
+  )[0]
   return NextResponse.json({ app: row })
 }
 
 export async function DELETE(_request, { params }) {
-  try { await requireAdmin() } catch (e) {
-    if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status })
+  try {
+    await requireAdmin()
+  } catch (e) {
+    if (e instanceof AdminAuthError)
+      return NextResponse.json({ error: e.message }, { status: e.status })
     throw e
   }
   const id = params.id
-  const existing = await queryOne(
-    `SELECT id FROM apps WHERE id = $1 AND workspace_id = $2`,
-    [id, WORKSPACE_ID]
-  )
+  const existing = await queryOne(`SELECT id FROM apps WHERE id = $1 AND workspace_id = $2`, [
+    id,
+    WORKSPACE_ID,
+  ])
   if (!existing) return NextResponse.json({ error: 'App not found' }, { status: 404 })
 
   await query(`DELETE FROM apps WHERE id = $1 AND workspace_id = $2`, [id, WORKSPACE_ID])
