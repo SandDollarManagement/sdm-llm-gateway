@@ -15,29 +15,32 @@ import { queryOne, query } from '@/lib/db'
  */
 export async function resolveAlias({ workspaceId, aliasName }) {
   const alias = await queryOne(
-    `SELECT id, name, description, fallback_chain
+    `SELECT id, name, description, fallback_chain,
+            capability_type, fallback_allowed, local_only_eligible,
+            retention_policy_notes, cost_latency_priority,
+            embedding_dimension, embedding_model_family, embedding_model_version
        FROM aliases
       WHERE workspace_id = $1 AND name = $2
       LIMIT 1`,
-    [workspaceId, aliasName]
+    [workspaceId, aliasName],
   )
   if (!alias) throw new Error(`Alias "${aliasName}" not found in workspace ${workspaceId}.`)
 
   const chain = Array.isArray(alias.fallback_chain) ? alias.fallback_chain : []
   if (chain.length === 0) {
     throw new Error(
-      `Alias "${aliasName}" has an empty fallback chain. Populate it via the admin UI or seed script.`
+      `Alias "${aliasName}" has an empty fallback chain. Populate it via the admin UI or seed script.`,
     )
   }
 
-  const providerIds = [...new Set(chain.map(entry => entry.provider_id).filter(Boolean))]
+  const providerIds = [...new Set(chain.map((entry) => entry.provider_id).filter(Boolean))]
   let providers = []
   if (providerIds.length > 0) {
     providers = await query(
       `SELECT id, name, auth_type, base_url, enabled
          FROM providers
         WHERE id = ANY($1::uuid[])`,
-      [providerIds]
+      [providerIds],
     )
   }
 

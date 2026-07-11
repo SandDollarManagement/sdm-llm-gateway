@@ -11,8 +11,11 @@ export const runtime = 'nodejs'
 const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001'
 
 export async function GET(request) {
-  try { await requireAdmin() } catch (e) {
-    if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status })
+  try {
+    await requireAdmin()
+  } catch (e) {
+    if (e instanceof AdminAuthError)
+      return NextResponse.json({ error: e.message }, { status: e.status })
     throw e
   }
 
@@ -23,13 +26,27 @@ export async function GET(request) {
   const alias = url.searchParams.get('alias') || null
   const providerId = url.searchParams.get('provider_id') || null
   const status = url.searchParams.get('status') || null
+  const correlationId = url.searchParams.get('correlation_id') || null
 
   const filters = ['workspace_id = $1']
   const args = [WORKSPACE_ID]
   let p = 2
-  if (appId) { filters.push(`app_id = $${p++}`); args.push(appId) }
-  if (alias) { filters.push(`alias = $${p++}`); args.push(alias) }
-  if (providerId) { filters.push(`provider_id = $${p++}`); args.push(providerId) }
+  if (appId) {
+    filters.push(`app_id = $${p++}`)
+    args.push(appId)
+  }
+  if (alias) {
+    filters.push(`alias = $${p++}`)
+    args.push(alias)
+  }
+  if (providerId) {
+    filters.push(`provider_id = $${p++}`)
+    args.push(providerId)
+  }
+  if (correlationId) {
+    filters.push(`correlation_id = $${p++}`)
+    args.push(correlationId)
+  }
   if (status) {
     if (status === 'ok') filters.push(`status = 200`)
     else if (status === 'error') filters.push(`status <> 200`)
@@ -40,6 +57,7 @@ export async function GET(request) {
     SELECT cl.id, cl.created_at, cl.alias, cl.model, cl.auth_method,
            cl.request_tokens, cl.response_tokens, cl.cost_usd,
            cl.latency_ms, cl.status, cl.error, cl.fallback_position,
+           cl.correlation_id, cl.policy_snapshot,
            a.name AS app_name,
            p.name AS provider_name
       FROM call_logs cl

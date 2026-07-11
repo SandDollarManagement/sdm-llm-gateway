@@ -40,35 +40,40 @@ Matches existing SDM apps (Ops Hub, storyquest, Gmail-Drive-Manager):
 
 See `.env.example` for the canonical list. Required at runtime:
 
-| Var | Source |
-|---|---|
-| `ADMIN_EMAILS` | Comma-separated allowed Google login emails |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud Console OAuth 2.0 client |
-| `NEXTAUTH_SECRET` | Generated, stored in Coolify env + 1Password |
-| `NEXTAUTH_URL` | `https://llm.sanddollarmanagementllc.com` |
-| `DATABASE_URL` | Postgres connection string (`postgresql://USER:PASS@gateway-db:5432/sdm_llm_gateway`) |
-| `GATEWAY_ENCRYPTION_KEY` | Generated, stored in Coolify env + 1Password |
-| `LITELLM_INTERNAL_URL` | `http://gateway-litellm:4000` |
-| `LITELLM_MASTER_KEY` | Generated, stored in Coolify env + 1Password |
+| Var                                         | Source                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `ADMIN_EMAILS`                              | Comma-separated allowed Google login emails                                           |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud Console OAuth 2.0 client                                                 |
+| `NEXTAUTH_SECRET`                           | Generated, stored in Coolify env + 1Password                                          |
+| `NEXTAUTH_URL`                              | `https://llm.sanddollarmanagementllc.com`                                             |
+| `DATABASE_URL`                              | Postgres connection string (`postgresql://USER:PASS@gateway-db:5432/sdm_llm_gateway`) |
+| `GATEWAY_ENCRYPTION_KEY`                    | Generated, stored in Coolify env + 1Password                                          |
+| `LITELLM_INTERNAL_URL`                      | `http://gateway-litellm:4000`                                                         |
+| `LITELLM_MASTER_KEY`                        | Generated, stored in Coolify env + 1Password                                          |
 
 ---
 
 ## How an app calls the gateway
 
-OpenAI-compatible endpoint. Apps swap their existing OpenAI/Anthropic SDK base URL to the gateway and use a model alias (`default`, `reasoning`, `fast`, `vision`, `bulk-classify`) instead of a specific model name.
+OpenAI-compatible endpoint. Apps swap their existing OpenAI/Anthropic SDK base URL to the gateway and use a model alias instead of a specific provider model name.
+
+Core aliases include `default`, `reasoning`, `fast`, `vision`, and `bulk-classify`.
+Document Vault and future SDM apps use `doc-answer`, `doc-summarize`,
+`doc-rerank`, `doc-embed`, `vision-ocr`, `fast-classify`, and `local-private`.
+Embedding clients call `/v1/embeddings` with `model: "doc-embed"`.
 
 ```javascript
-import OpenAI from "openai";
+import OpenAI from 'openai'
 
 const llm = new OpenAI({
   apiKey: process.env.SDM_GATEWAY_TOKEN,
-  baseURL: "https://llm.sanddollarmanagementllc.com/v1",
-});
+  baseURL: 'https://llm.sanddollarmanagementllc.com/v1',
+})
 
 const response = await llm.chat.completions.create({
-  model: "default",
-  messages: [{ role: "user", content: "Hello" }],
-});
+  model: 'default',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
 ```
 
 Per-app bearer tokens are issued in the gateway admin UI under Apps.

@@ -12,6 +12,12 @@ import { callAnthropicViaClaudeCli } from '@/lib/providers/anthropic-claude-cli'
 import { callAnthropicViaApiKey } from '@/lib/providers/anthropic-api'
 import { callViaLiteLLM } from '@/lib/providers/litellm'
 import { logCall } from '@/lib/logging'
+import {
+  enforceAppPolicy,
+  policySnapshot,
+  selectChainEntries,
+  validateAliasChainPolicy,
+} from '@/lib/routing/policy'
 
 const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001' // seed workspace
 
@@ -20,25 +26,64 @@ const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001' // seed workspace
  * @param {string} opts.aliasName
  * @param {object} opts.app             The app row from authenticateAppRequest.
  * @param {Array}  opts.messages        OpenAI-style messages array.
+ * @param {string|null} opts.correlationId
  */
-export async function executeChatCompletion({ aliasName, app, messages }) {
+export async function executeChatCompletion({ aliasName, app, messages, correlationId = null }) {
   const { alias, providers } = await resolveAlias({
     workspaceId: WORKSPACE_ID,
     aliasName,
   })
+  validateAliasChainPolicy({ alias, providers })
+  await enforceAppPolicy({ app, alias, workspaceId: WORKSPACE_ID, requestedAlias: aliasName })
 
-  const providerById = new Map(providers.map(p => [p.id, p]))
+  const providerById = new Map(providers.map((p) => [p.id, p]))
   const errors = []
+  const chainEntries = selectChainEntries({ alias, app })
+  const snapshot = policySnapshot({ alias, app, correlationId })
 
-  for (let i = 0; i < alias.fallback_chain.length; i++) {
-    const entry = alias.fallback_chain[i]
+  for (let i = 0; i < chainEntries.length; i++) {
+    const entry = chainEntries[i]
+    const originalPosition = Array.isArray(alias.fallback_chain)
+      ? alias.fallback_chain.indexOf(entry)
+      : i
+    const fallbackPosition = originalPosition >= 0 ? originalPosition : i
     const provider = providerById.get(entry.provider_id)
     if (!provider) {
       errors.push({ position: i, error: `provider ${entry.provider_id} not found` })
+      await logCall({
+        workspaceId: WORKSPACE_ID,
+        appId: app?.id ?? null,
+        alias: alias.name,
+        providerId: null,
+        model: entry.model || null,
+        authMethod: null,
+        status: 424,
+        error: `provider ${entry.provider_id} not found`,
+        fallbackPosition,
+        correlationId,
+        policySnapshot: snapshot,
+      })
       continue
     }
     if (!provider.enabled) {
-      errors.push({ position: i, providerName: provider.name, error: `provider ${provider.name} disabled` })
+      errors.push({
+        position: i,
+        providerName: provider.name,
+        error: `provider ${provider.name} disabled`,
+      })
+      await logCall({
+        workspaceId: WORKSPACE_ID,
+        appId: app?.id ?? null,
+        alias: alias.name,
+        providerId: provider.id,
+        model: entry.model || null,
+        authMethod: provider.auth_type,
+        status: 424,
+        error: `provider ${provider.name} disabled`,
+        fallbackPosition,
+        correlationId,
+        policySnapshot: snapshot,
+      })
       continue
     }
 
@@ -55,7 +100,9 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
         responseTokens: result.response_tokens ?? null,
         latencyMs: result.latency_ms,
         status: 200,
-        fallbackPosition: i,
+        fallbackPosition,
+        correlationId,
+        policySnapshot: snapshot,
       })
       return {
         completion: toOpenAIChatCompletion({
@@ -66,6 +113,7 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
           requestTokens: result.request_tokens ?? null,
           responseTokens: result.response_tokens ?? null,
           diag: result._diag || null,
+          correlationId,
         }),
         providerId: provider.id,
         model: result.model,
@@ -84,14 +132,16 @@ export async function executeChatCompletion({ aliasName, app, messages }) {
         latencyMs: err.latencyMs ?? null,
         status: err.status ?? err.exitCode ?? 500,
         error: err.message?.slice(0, 1000),
-        fallbackPosition: i,
+        fallbackPosition,
+        correlationId,
+        policySnapshot: snapshot,
       })
       // fall through to next chain entry
     }
   }
 
   const summary = errors
-    .map(e => `[${e.position}/${e.providerName || '?'}] ${e.error}`)
+    .map((e) => `[${e.position}/${e.providerName || '?'}] ${e.error}`)
     .join(' | ')
   const allFailed = new Error(`All providers in chain failed for alias "${aliasName}": ${summary}`)
   allFailed.fallbackErrors = errors
@@ -136,22 +186,29 @@ async function tryProvider({ provider, entry, messages }) {
 }
 
 async function loadProviderApiKey(providerId) {
-  const row = await queryOne(
-    `SELECT credentials FROM providers WHERE id = $1`,
-    [providerId]
-  )
+  const row = await queryOne(`SELECT credentials FROM providers WHERE id = $1`, [providerId])
   if (!row || !row.credentials) {
-    throw new Error(`provider ${providerId} has no credential stored. Set its API key in the admin UI.`)
+    throw new Error(
+      `provider ${providerId} has no credential stored. Set its API key in the admin UI.`,
+    )
   }
   return decrypt(row.credentials)
 }
 
-function toOpenAIChatCompletion({ aliasName, model, content, id, requestTokens, responseTokens, diag }) {
+function toOpenAIChatCompletion({
+  aliasName,
+  model,
+  content,
+  id,
+  requestTokens,
+  responseTokens,
+  diag,
+  correlationId,
+}) {
   const promptTokens = requestTokens ?? null
   const completionTokens = responseTokens ?? null
-  const totalTokens = promptTokens != null && completionTokens != null
-    ? promptTokens + completionTokens
-    : null
+  const totalTokens =
+    promptTokens != null && completionTokens != null ? promptTokens + completionTokens : null
   return {
     id,
     object: 'chat.completion',
@@ -171,6 +228,7 @@ function toOpenAIChatCompletion({ aliasName, model, content, id, requestTokens, 
     },
     _gateway: {
       resolved_model: model,
+      correlation_id: correlationId || null,
       _diag: diag || null,
     },
   }

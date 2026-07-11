@@ -20,6 +20,8 @@ import { query } from '@/lib/db'
  * @param {number|null} entry.status        HTTP-ish status code.
  * @param {string|null} entry.error
  * @param {number} entry.fallbackPosition   0 = primary, 1 = first fallback, etc.
+ * @param {string|null} entry.correlationId
+ * @param {object|null} entry.policySnapshot
  */
 export async function logCall(entry) {
   try {
@@ -27,8 +29,8 @@ export async function logCall(entry) {
       `INSERT INTO call_logs (
         workspace_id, app_id, alias, provider_id, model, auth_method,
         request_tokens, response_tokens, cost_usd, latency_ms, status, error,
-        fallback_position
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        fallback_position, correlation_id, policy_snapshot
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)`,
       [
         entry.workspaceId,
         entry.appId ?? null,
@@ -43,7 +45,9 @@ export async function logCall(entry) {
         entry.status ?? null,
         entry.error ?? null,
         entry.fallbackPosition ?? 0,
-      ]
+        entry.correlationId ?? null,
+        entry.policySnapshot ? JSON.stringify(entry.policySnapshot) : null,
+      ],
     )
   } catch (err) {
     // Logging failures must never break the request path.

@@ -10,14 +10,18 @@ async function load() {
   try {
     const [aliases, providers] = await Promise.all([
       query(
-        `SELECT id, name, description, fallback_chain, created_at, updated_at
+        `SELECT id, name, description, fallback_chain,
+                capability_type, fallback_allowed, local_only_eligible,
+                retention_policy_notes, cost_latency_priority,
+                embedding_dimension, embedding_model_family, embedding_model_version,
+                created_at, updated_at
            FROM aliases WHERE workspace_id = $1 ORDER BY name`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
       query(
         `SELECT id, name, auth_type, enabled
            FROM providers WHERE workspace_id = $1 ORDER BY name, auth_type`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
     ])
     return { aliases, providers }

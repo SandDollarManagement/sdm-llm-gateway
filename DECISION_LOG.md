@@ -9,6 +9,7 @@
 ## Format
 
 Each decision has:
+
 - **ID** — sequential, e.g. `D-001`
 - **Date** — ISO format
 - **Status** — `Active`, `Superseded by D-XXX`, or `Reversed`
@@ -421,7 +422,44 @@ Each decision has:
 ## Decisions Pending (see OPEN_DECISIONS.md)
 
 Two decisions remain open, both for later phases:
+
 - **OD-001 (was OD-004)** — OAuth token rotation reminder mechanism. Now lower priority since OAuth is no longer the primary path.
 - **OD-002 (was OD-006)** — Per-agent alias ownership pattern. Blocks Phase 6.
 
-Once resolved, they move here as `D-023` onward.
+Once resolved, they move here as `D-024` onward.
+
+---
+
+## D-023 — Gateway owns Document Vault aliases and app policy
+
+- **Date:** 2026-07-11
+- **Status:** Active
+- **Context:** Document Vault and future SDM apps need one shared place to manage
+  provider choice, model aliases, fallback behavior, local/cloud routing,
+  app-specific access, usage caps, and provider-failure visibility. Letting each
+  app call provider model names directly would repeat credentials, spread model
+  strings across apps, and make fallback and telemetry inconsistent.
+- **Decision:** The gateway owns first-class workload aliases (`doc-answer`,
+  `doc-summarize`, `doc-rerank`, `doc-embed`, `vision-ocr`,
+  `fast-classify`, `local-private`) plus alias metadata and per-app policy.
+  Apps authenticate with their gateway token and request aliases only. The
+  routing layer enforces app allowed-alias lists, monthly caps,
+  app/alias fallback permissions, local-only restrictions, and embedding vector
+  compatibility before provider calls.
+- **Alternatives considered:**
+  - Keep aliases in downstream apps — rejected because provider and fallback
+    behavior would drift across apps.
+  - Let apps request raw models through the gateway — rejected because it
+    weakens D-004 and forces app redeploys when models change.
+  - Enforce policy only in admin UI — rejected because API calls must be safe
+    even if data is edited outside the UI.
+- **Consequences:**
+  - Document Vault can integrate by calling gateway aliases instead of direct
+    provider models.
+  - Alias rows now carry capability, fallback, retention, priority, and
+    embedding metadata.
+  - App rows now carry allowed aliases and fallback permission in addition to
+    enabled state and monthly cap.
+  - Call logs include correlation IDs and policy snapshots so failures are
+    visible in the admin logs, not only server logs.
+  - Embedding fallback requires explicit dimension compatibility.
