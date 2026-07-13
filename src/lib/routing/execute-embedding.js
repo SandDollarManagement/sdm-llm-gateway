@@ -6,6 +6,7 @@ import { decrypt } from '@/lib/crypto'
 import { resolveAlias } from '@/lib/routing/resolve-alias'
 import { callEmbeddingsViaLiteLLM } from '@/lib/providers/litellm'
 import { logCall } from '@/lib/logging'
+import { computeCostUsd } from '@/lib/routing/cost'
 import {
   enforceAppPolicy,
   policySnapshot,
@@ -23,7 +24,7 @@ export async function executeEmbedding({ aliasName, app, input, correlationId = 
   if (alias.capability_type !== 'embedding') {
     throw new Error(`Alias "${aliasName}" is capability "${alias.capability_type}", not embedding.`)
   }
-  validateAliasChainPolicy({ alias, providers })
+  validateAliasChainPolicy({ alias, providers, app })
   await enforceAppPolicy({ app, alias, workspaceId: WORKSPACE_ID, requestedAlias: aliasName })
 
   const providerById = new Map(providers.map((p) => [p.id, p]))
@@ -78,6 +79,11 @@ export async function executeEmbedding({ aliasName, app, input, correlationId = 
         apiKey,
         baseUrl: provider.base_url || undefined,
       })
+      const { costUsd } = await computeCostUsd({
+        model: entry.model,
+        requestTokens: result.request_tokens ?? null,
+        responseTokens: result.response_tokens ?? null,
+      })
       await logAttempt({
         app,
         alias,
@@ -87,6 +93,7 @@ export async function executeEmbedding({ aliasName, app, input, correlationId = 
         status: 200,
         requestTokens: result.request_tokens ?? null,
         responseTokens: result.response_tokens ?? null,
+        costUsd,
         latencyMs: result.latency_ms,
         fallbackPosition,
         correlationId,
@@ -142,6 +149,7 @@ async function logAttempt({
   error = null,
   requestTokens = null,
   responseTokens = null,
+  costUsd = null,
   latencyMs = null,
   fallbackPosition,
   correlationId,
@@ -156,6 +164,7 @@ async function logAttempt({
     authMethod: provider?.auth_type ?? null,
     requestTokens,
     responseTokens,
+    costUsd,
     latencyMs,
     status,
     error,

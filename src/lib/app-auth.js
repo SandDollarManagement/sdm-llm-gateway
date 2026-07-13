@@ -32,7 +32,8 @@ export async function authenticateAppRequest(request) {
   const tokenHash = sha256Hex(token)
   const rows = await query(
     `SELECT id, workspace_id, name, default_alias, monthly_budget_usd, enabled,
-            allowed_aliases, fallback_allowed
+            allowed_aliases, fallback_allowed, project_id, rpm_limit, tpm_limit,
+            budget_enforced
        FROM apps
       WHERE token_hash = $1
       LIMIT 1`,

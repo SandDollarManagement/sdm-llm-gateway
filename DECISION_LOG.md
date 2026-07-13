@@ -463,3 +463,30 @@ Once resolved, they move here as `D-024` onward.
   - Call logs include correlation IDs and policy snapshots so failures are
     visible in the admin logs, not only server logs.
   - Embedding fallback requires explicit dimension compatibility.
+
+---
+
+## D-024 — Aether Sandbox lane (scoped, capped, model-allowlisted keys) + real cost computation
+
+- **Date:** 2026-07-12
+- **Status:** Active
+- **Context:** A low-trust, network-sealed build sandbox ("Aether") runs throwaway builds with the Claude Code CLI and Codex CLI. It must reach our models ONLY through the gateway with scoped/capped/revocable credentials so real provider keys never enter the sandbox. Building this surfaced a latent bug: `call_logs.cost_usd` was never populated, so every spend cap (`SUM(cost_usd)`) silently summed zero and never fired.
+- **Decision:**
+  - Add a `projects` grouping (lightweight, NOT a second workspace — routing hardcodes the single workspace id, so a second workspace was rejected as high-blast-radius) with a project-level monthly cap, rate-limit defaults, and an `enabled` kill switch.
+  - Model each sandbox virtual key as an `apps` row scoped to the project (`project_id`), `budget_enforced=true`, `allowed_aliases` locked to the sandbox aliases, own per-key cap + rpm/tpm limits. Revoke = disable/delete/rotate.
+  - Compute per-call cost from a new `model_prices` table, keyed on the RESOLVED chain model (never the provider's echoed dated id), wired into all four routing paths. This makes every cap real.
+  - **Enforcement is opt-in via `budget_enforced` (default FALSE):** turning on cost computation does NOT retroactively arm caps on existing apps that happen to have a `monthly_budget_usd` set. Only sandbox keys opt in.
+  - **Fail-closed model allowlist:** a project-scoped key with an empty/NULL `allowed_aliases` is refused (DB CHECK + policy check).
+  - **Unpriced model is refused, never billed as free:** a budget-enforced key may only reach models present in `model_prices` (never-invent-a-number). `gpt-5-codex` is intentionally left unpriced until confirmed.
+  - **Sandbox aliases may never route to an OAuth provider** (uncosted, would bypass the cap and burn shared Max credit) — enforced in `validateAliasChainPolicy`.
+  - Rate limits (rpm/tpm) are best-effort DB-window counters (no Redis); the spend cap is the real backstop. The cap is post-hoc (refuses the next request after spend crosses; never queues); per-request output tokens are clamped by `alias.max_output_tokens` to bound overshoot.
+  - Allowed model IDs: `claude-sonnet-5` (build), `claude-haiku-4-5` (mechanical), `gpt-5-codex` (Codex). Conservative defaults: project $20/mo, per-key $5/mo, 30 rpm, 60k tpm, alerts at 50%/90%.
+- **Alternatives considered:**
+  - Second `workspaces` row per project — rejected; routing hardcodes the seed workspace id, high blast radius.
+  - Machine-callable per-build mint endpoint — rejected for now; new unreviewed auth surface. Keys are minted admin-session-gated (UI or `scripts/mint-sandbox-key.js`), per the operator's stated single-dedicated-key fallback.
+  - Rely on LiteLLM's own budgets/keys — rejected; the gateway's app/alias layer is the public contract and the Anthropic api_key path bypasses LiteLLM.
+- **Consequences:**
+  - `call_logs.cost_usd` is now populated for all apps; the per-app monthly cap (dormant since FS-001) becomes functional but only for apps with `budget_enforced=true`.
+  - New tables `projects`, `model_prices`, `spend_alerts`; new columns on `apps` and `aliases`. All additive/idempotent (migration 009).
+  - New admin surfaces: Projects page (spend/cap, kill switch, mint key), spend-alert surface on dashboard + projects.
+  - **Does NOT by itself make the CLIs run tool-using builds end-to-end** — see G-001. This is the locked-down lane; the tool/streaming passthrough is a tracked follow-on.
