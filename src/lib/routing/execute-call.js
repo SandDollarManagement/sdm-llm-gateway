@@ -12,6 +12,7 @@ import { callAnthropicViaClaudeCli } from '@/lib/providers/anthropic-claude-cli'
 import { callAnthropicViaApiKey } from '@/lib/providers/anthropic-api'
 import { callViaLiteLLM } from '@/lib/providers/litellm'
 import { logCall } from '@/lib/logging'
+import { computeCostUsd } from '@/lib/routing/cost'
 import {
   enforceAppPolicy,
   policySnapshot,
@@ -33,13 +34,16 @@ export async function executeChatCompletion({ aliasName, app, messages, correlat
     workspaceId: WORKSPACE_ID,
     aliasName,
   })
-  validateAliasChainPolicy({ alias, providers })
+  validateAliasChainPolicy({ alias, providers, app })
   await enforceAppPolicy({ app, alias, workspaceId: WORKSPACE_ID, requestedAlias: aliasName })
 
   const providerById = new Map(providers.map((p) => [p.id, p]))
   const errors = []
   const chainEntries = selectChainEntries({ alias, app })
   const snapshot = policySnapshot({ alias, app, correlationId })
+  // Output-token ceiling for this alias (bounds sandbox overshoot); undefined
+  // leaves the provider default in place for non-capped aliases.
+  const maxTokens = alias.max_output_tokens != null ? Number(alias.max_output_tokens) : undefined
 
   for (let i = 0; i < chainEntries.length; i++) {
     const entry = chainEntries[i]
@@ -88,7 +92,13 @@ export async function executeChatCompletion({ aliasName, app, messages, correlat
     }
 
     try {
-      const result = await tryProvider({ provider, entry, messages })
+      const result = await tryProvider({ provider, entry, messages, maxTokens })
+      // Price by the model WE resolved (entry.model), never the echoed id.
+      const { costUsd } = await computeCostUsd({
+        model: entry.model,
+        requestTokens: result.request_tokens ?? null,
+        responseTokens: result.response_tokens ?? null,
+      })
       await logCall({
         workspaceId: WORKSPACE_ID,
         appId: app.id,
@@ -98,6 +108,7 @@ export async function executeChatCompletion({ aliasName, app, messages, correlat
         authMethod: provider.auth_type,
         requestTokens: result.request_tokens ?? null,
         responseTokens: result.response_tokens ?? null,
+        costUsd,
         latencyMs: result.latency_ms,
         status: 200,
         fallbackPosition,
@@ -148,7 +159,7 @@ export async function executeChatCompletion({ aliasName, app, messages, correlat
   throw allFailed
 }
 
-async function tryProvider({ provider, entry, messages }) {
+async function tryProvider({ provider, entry, messages, maxTokens }) {
   const name = provider.name.toLowerCase()
 
   // Anthropic OAuth path uses the claude CLI child process (D-020),
@@ -169,6 +180,7 @@ async function tryProvider({ provider, entry, messages }) {
       providerId: provider.id,
       messages,
       model: entry.model || undefined,
+      ...(maxTokens != null ? { maxTokens } : {}),
     })
   }
 
@@ -182,6 +194,7 @@ async function tryProvider({ provider, entry, messages }) {
     model: entry.model,
     apiKey,
     baseUrl: provider.base_url || undefined,
+    maxTokens,
   })
 }
 

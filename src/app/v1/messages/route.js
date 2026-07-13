@@ -13,6 +13,7 @@ import { resolveAlias } from '@/lib/routing/resolve-alias'
 import { callAnthropicMessagesRaw } from '@/lib/providers/anthropic-api'
 import { streamMessagesAnthropic } from '@/lib/routing/stream-call'
 import { logCall } from '@/lib/logging'
+import { computeCostUsd } from '@/lib/routing/cost'
 import {
   enforceAppPolicy,
   extractCorrelationId,
@@ -151,7 +152,7 @@ export async function POST(request) {
     })
     alias = resolved.alias
     providers = resolved.providers
-    validateAliasChainPolicy({ alias, providers })
+    validateAliasChainPolicy({ alias, providers, app })
     await enforceAppPolicy({ app, alias, workspaceId: WORKSPACE_ID, requestedAlias: aliasName })
   } catch (err) {
     await logCall({
@@ -218,7 +219,12 @@ export async function POST(request) {
   // (tool_use / tool_result), tools, tool_choice, and system blocks WITH
   // cache_control pass through UNTOUCHED. Override only the model (alias ->
   // resolved). The streaming branch above still uses normalizedMessages. (D-022)
-  const anthropicRequest = { messages: anthroMessages, max_tokens: maxTokens }
+  // Clamp output tokens to the alias ceiling when set (bounds sandbox overshoot).
+  const effectiveMaxTokens =
+    alias.max_output_tokens != null
+      ? Math.min(Number(maxTokens), Number(alias.max_output_tokens))
+      : maxTokens
+  const anthropicRequest = { messages: anthroMessages, max_tokens: effectiveMaxTokens }
   if (system !== null) anthropicRequest.system = system
   if (body.tools !== undefined) anthropicRequest.tools = body.tools
   if (body.tool_choice !== undefined) anthropicRequest.tool_choice = body.tool_choice
@@ -242,6 +248,11 @@ export async function POST(request) {
         },
       })
 
+      const { costUsd } = await computeCostUsd({
+        model: chosen.entry.model,
+        requestTokens: result.request_tokens ?? null,
+        responseTokens: result.response_tokens ?? null,
+      })
       await logCall({
         workspaceId: WORKSPACE_ID,
         appId: app.id,
@@ -251,6 +262,7 @@ export async function POST(request) {
         authMethod: chosen.provider.auth_type,
         requestTokens: result.request_tokens ?? null,
         responseTokens: result.response_tokens ?? null,
+        costUsd,
         latencyMs: result.latency_ms,
         status: 200,
         fallbackPosition: chosen.position,

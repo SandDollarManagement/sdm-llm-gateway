@@ -6,96 +6,120 @@
 
 ---
 
-## State update — 2026-07-11 (Document Vault shared provider layer)
+## State update — 2026-07-12 (Aether Sandbox lane — guardrails built)
 
-- **Gateway alias/policy layer built:** Added `FS-001` support for Document
-  Vault and future SDM apps. New first-class aliases are seeded for
-  `doc-answer`, `doc-summarize`, `doc-rerank`, `doc-embed`, `vision-ocr`,
-  `fast-classify`, and `local-private`, with capability metadata, fallback
-  policy, local/cloud eligibility, retention notes, priority, and embedding
-  dimension/family/version where needed.
-- **Per-app controls built:** Apps now support allowed-alias lists and
-  fallback permission in addition to existing enabled state and monthly budget
-  cap. Routing enforces these policies before provider calls.
-- **Fallback safety built:** Provider fallback now respects alias/app policy,
-  local-only aliases reject cloud providers, and embedding aliases reject
-  fallback entries with incompatible vector dimensions.
-- **Correlation and visibility built:** App-supplied correlation IDs are
-  accepted from headers/body metadata, written to call logs, returned in
-  OpenAI-compatible response metadata and response headers where practical, and
-  visible/filterable in the Logs UI. Raw document content is still not logged by
-  default.
-- **Admin surfaces updated:** Aliases UI exposes metadata/policy fields. Apps UI
-  exposes allowed aliases and fallback permission. Logs UI exposes correlation
-  IDs.
-- **LiteLLM config updated:** Added model entries for
-  `openai-text-embedding-3-small` and `local-private-llama` so provider chains
-  have stable model names for embedding/local routing once providers are
-  configured.
-- **Embeddings endpoint added:** `/v1/embeddings` accepts a gateway alias,
-  enforces embedding capability metadata, routes through LiteLLM, and returns
-  OpenAI-compatible embedding responses with gateway metadata.
+- **Aether Sandbox lane built (FS-002 / D-024):** a locked-down project + scoped
+  key for a low-trust build sandbox. Additive and reversible.
+  - New `projects` grouping with a project-wide monthly cap, rate-limit
+    defaults, and an `enabled` kill switch. Seeded `aether-sandbox` ($20/mo,
+    30 rpm, 60k tpm).
+  - Sandbox keys are `apps` rows scoped to the project, `budget_enforced`, with a
+    per-key cap ($5/mo default) and rpm/tpm limits, locked to the three sandbox
+    aliases. Minted admin-side only (`scripts/mint-sandbox-key.js` or the
+    Projects UI) — the sandbox can never mint its own key.
+  - **Real cost computation added** (`model_prices` + `cost.js`), wired into all
+    four routing paths. This fixes a latent bug where `call_logs.cost_usd` was
+    always NULL and every spend cap silently never fired.
+  - Guardrails: fail-closed model allowlist, unpriced-model refusal (never bill
+    unknown cost as free), sandbox-OAuth ban, rpm/tpm throttle, project + per-key
+    caps with 50%/90% spend alerts surfaced in the admin UI.
+  - Allowed models: `claude-sonnet-5`, `claude-haiku-4-5`, `gpt-5-codex`.
+- **No retroactive enforcement:** `budget_enforced` defaults FALSE, so existing
+  apps that already have a `monthly_budget_usd` set are NOT newly 429'd — they
+  stay track-only until explicitly opted in.
+- **Admin surfaces:** new Projects page (spend vs cap, kill switch, mint key,
+  spend alerts), dashboard spend-alert banner, Apps API extended for the new
+  key fields.
 
 ---
 
 ## Current State
 
-**Phase:** Shared gateway provider layer implementation complete in working tree.
-**Status:** Code and canonical docs updated; lint, unit tests, and production
-build pass locally.
-**Version:** Still `0.6.0`; no version bump done in this slice.
+**Phase:** Aether Sandbox guardrail lane complete in the working tree (branch
+`feat/aether-sandbox-lane` not yet created — git write ops blocked in this
+session; changes staged in the working tree).
+**Status:** Unit tests (32) pass, production build compiles all new
+routes/pages, lint clean. Fresh-context security + correctness audits ran; all
+findings fixed and locked with tests:
+
+- P0: `/projects` added to the auth middleware matcher (was readable
+  unauthenticated).
+- Security/P1: containment no longer depends on the `budget_enforced` flag — any
+  project-scoped key refuses unpriced models + enforces its cap; OAuth ban now
+  bound to the key, not just the alias; empty-allowlist DB CHECK uses
+  `cardinality()` (was a no-op via `array_length('{}',1)`).
+- P1: `max_output_tokens` ceiling wired into the `/v1/chat/completions`
+  (OpenAI-shim) paths too.
+- P2: Apps PATCH returns 400 (not 500) on a bad `project_id`; spend-alert insert
+  uses explicit per-scope conflict targets; streaming-refusal-at-200 logged as
+  G-004.
+  **Version:** `0.6.0` (no bump in this slice).
 
 ---
 
 ## Last Action Taken
 
-- Added migration `008_gateway_alias_policy.sql`.
-- Added shared routing policy enforcement in `src/lib/routing/policy.js` and
-  embedding routing in `src/lib/routing/execute-embedding.js`.
-- Updated alias resolution, non-streaming execution, streaming execution, app
-  auth, logging, OpenAI-compatible route, Anthropic-compatible route, admin APIs,
-  and admin UI components.
-- Added unit tests for alias resolution, fallback behavior, policy enforcement,
-  embedding compatibility, missing credentials, and correlation logging.
-- Logged architecture decision `D-023` and feature spec `FS-001`.
+- Added migration `009_aether_sandbox.sql` (projects, apps columns, aliases
+  columns, model_prices, spend_alerts, seeds; additive/idempotent).
+- Added `src/lib/routing/cost.js` and `src/lib/routing/budget.js`; extended
+  `policy.js` (kill switch, fail-closed allowlist, unpriced-model refusal,
+  rpm/tpm, project+key caps, spend alerts, sandbox-OAuth ban).
+- Wired cost into `execute-call.js`, `v1/messages/route.js`, `stream-call.js`,
+  `execute-embedding.js`; extended `app-auth.js` and `resolve-alias.js` selects.
+- Added admin routes: `projects` (+`[id]`, `[id]/keys`), `alerts` (+`[id]`);
+  extended `apps` routes. Added Projects page + `ProjectsClient`, dashboard alert
+  banner, Projects nav item.
+- Added `scripts/aether-seed.js`, `scripts/aether-kill.js`,
+  `scripts/mint-sandbox-key.js`; added `openai-gpt-5-codex` to litellm-config.
+- Added tests `cost.test.js`, `policy-sandbox.test.js`; updated `policy.test.js`.
+- Logged `D-024`, `FS-002`, gaps `G-001`/`G-002`/`G-003`.
 
 ---
 
 ## Blockers
 
-None from the operator. Live provider chains still need actual provider rows and
-model choices configured in the admin UI before Document Vault can send
-production traffic through the new aliases.
+Out-of-band steps only I (operator) can do — none block the code merge:
+
+1. Run migration 009 on the deployed Postgres (`docker exec gateway-web node
+scripts/migrate.js`) — migrations do NOT auto-run on deploy.
+2. Confirm an `anthropic (api_key)` provider and an `openai (api_key)` provider
+   exist with real keys, then run `scripts/aether-seed.js` to wire the sandbox
+   alias chains.
+3. Mint the sandbox key (Projects UI or `scripts/mint-sandbox-key.js`).
+4. **Pre-merge safety check:** confirm no live app already has a
+   `monthly_budget_usd` set that would now enforce — but `budget_enforced`
+   defaults FALSE so this is belt-and-suspenders, not a hard gate.
 
 ---
 
 ## Next Decision Needed
 
-None. Technical implementation choices are made. Next work is operational:
-configure provider chains for the new aliases and migrate Document Vault to call
-gateway aliases instead of direct provider models.
+None for the guardrail lane. The open product decision is sequencing of the
+follow-on (**G-001**: CLI tool-call + streaming passthrough) that makes the CLIs
+actually run builds end-to-end — recommended as the immediate next build with its
+own council pass, since it changes the shared response contract.
 
 ---
 
 ## Build Queue
 
-1. Apply migration `008_gateway_alias_policy.sql` in the deployed Postgres
-   database.
-2. Configure provider chains for the seven Document Vault aliases in the gateway
-   admin UI.
-3. Migrate Document Vault to use `SDM_GATEWAY_TOKEN`,
-   `SDM_GATEWAY_URL`, and gateway alias names.
+1. Deploy code + run migration 009 + `aether-seed.js` + mint key (out-of-band).
+2. Price `gpt-5-codex` in `model_prices` (G-003) when confirmed.
+3. **G-001 follow-on build (council-gated):** tool-call + streaming passthrough
+   for `/v1/messages` (Anthropic) and `/v1/chat/completions` (OpenAI/Codex) so
+   both CLIs run tool-using builds end-to-end.
+4. Regenerate `SYSTEM_MAP.md` (routes/tables/env changed).
 
 ---
 
 ## Risk Register
 
-1. **Rerank endpoint coverage:** This slice establishes the `doc-rerank` alias
-   and policy metadata, but no separate rerank-specific public endpoint exists
-   yet. If Document Vault needs a dedicated rerank API instead of a
-   generation/structured call, that is the next implementation slice.
-2. **Live provider-chain setup:** Seeded aliases intentionally have empty chains
-   until providers are configured. Calls to empty aliases return clear errors.
-3. **Generated system map stale:** `SYSTEM_MAP.md` is generated-only and now
-   needs regeneration by the project meta-orchestrator after this build because
-   tables, routes, and admin surfaces changed.
+1. **Post-hoc cap / best-effort rate limit (G-002):** the cap refuses the next
+   request after spend crosses (never queues); output tokens clamped to bound
+   overshoot. Rate limits are a best-effort DB-window throttle. The cap is the
+   real backstop.
+2. **Codex non-functional until G-001 + G-003:** the sandbox is guardrail-ready
+   but not build-capable for Codex until the passthrough lands and gpt-5-codex is
+   priced.
+3. **Generated system map stale:** `SYSTEM_MAP.md` needs regeneration after this
+   build (new routes, tables, admin surfaces).

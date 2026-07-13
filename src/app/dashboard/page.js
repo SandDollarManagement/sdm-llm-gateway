@@ -1,6 +1,15 @@
 import AdminShell from '@/components/AdminShell'
+import Link from 'next/link'
 import { query } from '@/lib/db'
-import { Activity, CheckCircle2, AlertCircle, Server, Layers, AppWindow } from 'lucide-react'
+import {
+  Activity,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Server,
+  Layers,
+  AppWindow,
+} from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +17,7 @@ const WORKSPACE_ID = '00000000-0000-0000-0000-000000000001'
 
 async function load() {
   try {
-    const [todayStats, providerStats, aliasStats, totals] = await Promise.all([
+    const [todayStats, providerStats, aliasStats, totals, openAlerts] = await Promise.all([
       query(
         `SELECT
             COUNT(*)::int AS total,
@@ -17,7 +26,7 @@ async function load() {
             ROUND(AVG(latency_ms))::int AS avg_latency_ms
            FROM call_logs
           WHERE workspace_id = $1 AND created_at >= date_trunc('day', now())`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
       query(
         `SELECT p.name AS provider_name, p.auth_type, COUNT(*)::int AS calls
@@ -26,7 +35,7 @@ async function load() {
           WHERE cl.workspace_id = $1 AND cl.created_at >= date_trunc('day', now())
           GROUP BY p.name, p.auth_type
           ORDER BY calls DESC`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
       query(
         `SELECT alias, COUNT(*)::int AS calls
@@ -34,14 +43,24 @@ async function load() {
           WHERE workspace_id = $1 AND created_at >= date_trunc('day', now())
           GROUP BY alias
           ORDER BY calls DESC`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
       query(
         `SELECT
             (SELECT COUNT(*)::int FROM providers WHERE workspace_id = $1 AND enabled) AS providers,
             (SELECT COUNT(*)::int FROM aliases WHERE workspace_id = $1) AS aliases,
             (SELECT COUNT(*)::int FROM apps WHERE workspace_id = $1 AND enabled) AS apps`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
+      ),
+      query(
+        `SELECT sa.id, sa.scope, sa.threshold, sa.spent_usd, sa.cap_usd,
+                p.name AS project_name, a.name AS app_name
+           FROM spend_alerts sa
+           LEFT JOIN projects p ON p.id = sa.project_id
+           LEFT JOIN apps a ON a.id = sa.app_id
+          WHERE sa.workspace_id = $1 AND sa.acknowledged = false
+          ORDER BY sa.created_at DESC LIMIT 10`,
+        [WORKSPACE_ID],
       ),
     ])
     return {
@@ -49,6 +68,7 @@ async function load() {
       providers: providerStats,
       aliases: aliasStats,
       totals: totals[0] || { providers: 0, aliases: 0, apps: 0 },
+      alerts: openAlerts,
     }
   } catch (err) {
     console.error('[dashboard] load failed:', err.message)
@@ -57,16 +77,36 @@ async function load() {
       providers: [],
       aliases: [],
       totals: { providers: 0, aliases: 0, apps: 0 },
+      alerts: [],
     }
   }
 }
 
 export default async function DashboardPage() {
-  const { today, providers, aliases, totals } = await load()
+  const { today, providers, aliases, totals, alerts } = await load()
   const successRate = today.total > 0 ? Math.round((today.ok / today.total) * 100) : null
 
   return (
     <AdminShell title="Dashboard">
+      {alerts && alerts.length > 0 && (
+        <Link
+          href="/projects"
+          className="flex items-center gap-3 px-4 py-3 mb-6 rounded-xl border bg-warning/10 border-warning/40 text-warning hover:bg-warning/20 transition-colors"
+        >
+          <AlertTriangle size={16} />
+          <span className="text-sm">
+            {alerts.length} open spend {alerts.length === 1 ? 'alert' : 'alerts'} —{' '}
+            {alerts
+              .slice(0, 3)
+              .map(
+                (a) => `${a.scope === 'project' ? a.project_name : a.app_name} at ${a.threshold}%`,
+              )
+              .join(', ')}
+            {alerts.length > 3 ? '…' : ''}. View in Projects.
+          </span>
+        </Link>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <StatCard icon={<Activity size={16} />} label="Calls today" value={today.total} />
         <StatCard
@@ -76,7 +116,9 @@ export default async function DashboardPage() {
           sub={`${today.ok} ok · ${today.errored} errored`}
         />
         <StatCard
-          icon={<AlertCircle size={16} className={today.errored > 0 ? 'text-danger' : 'text-muted'} />}
+          icon={
+            <AlertCircle size={16} className={today.errored > 0 ? 'text-danger' : 'text-muted'} />
+          }
           label="Errored today"
           value={today.errored}
         />
@@ -95,33 +137,36 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Panel title="Calls today by provider">
-          {providers.length === 0
-            ? <Empty>No calls yet today.</Empty>
-            : (
-              <ul className="divide-y divide-border">
-                {providers.map((p, i) => (
-                  <li key={i} className="flex justify-between items-center py-2 text-sm">
-                    <span>{p.provider_name || '—'} <span className="text-xs text-muted">({p.auth_type || '—'})</span></span>
-                    <span className="font-mono text-sm">{p.calls}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          {providers.length === 0 ? (
+            <Empty>No calls yet today.</Empty>
+          ) : (
+            <ul className="divide-y divide-border">
+              {providers.map((p, i) => (
+                <li key={i} className="flex justify-between items-center py-2 text-sm">
+                  <span>
+                    {p.provider_name || '—'}{' '}
+                    <span className="text-xs text-muted">({p.auth_type || '—'})</span>
+                  </span>
+                  <span className="font-mono text-sm">{p.calls}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Panel>
 
         <Panel title="Calls today by alias">
-          {aliases.length === 0
-            ? <Empty>No calls yet today.</Empty>
-            : (
-              <ul className="divide-y divide-border">
-                {aliases.map((a, i) => (
-                  <li key={i} className="flex justify-between items-center py-2 text-sm">
-                    <code className="text-sm">{a.alias || '—'}</code>
-                    <span className="font-mono text-sm">{a.calls}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          {aliases.length === 0 ? (
+            <Empty>No calls yet today.</Empty>
+          ) : (
+            <ul className="divide-y divide-border">
+              {aliases.map((a, i) => (
+                <li key={i} className="flex justify-between items-center py-2 text-sm">
+                  <code className="text-sm">{a.alias || '—'}</code>
+                  <span className="font-mono text-sm">{a.calls}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Panel>
       </div>
     </AdminShell>

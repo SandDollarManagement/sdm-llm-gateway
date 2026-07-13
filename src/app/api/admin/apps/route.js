@@ -23,7 +23,8 @@ export async function GET() {
   }
   const rows = await query(
     `SELECT id, name, default_alias, monthly_budget_usd, enabled,
-            allowed_aliases, fallback_allowed, created_at, last_used_at
+            allowed_aliases, fallback_allowed, project_id, rpm_limit, tpm_limit,
+            budget_enforced, created_at, last_used_at
        FROM apps
       WHERE workspace_id = $1
       ORDER BY name`,
@@ -58,6 +59,17 @@ export async function POST(request) {
     ? body.allowed_aliases.map((a) => String(a).trim()).filter(Boolean)
     : null
   const fallbackAllowed = typeof body?.fallback_allowed === 'boolean' ? body.fallback_allowed : true
+  const projectId = body?.project_id ? String(body.project_id).trim() : null
+  // A project-scoped key is always budget-enforced (containment must not depend
+  // on the flag). policy.js enforces this at request time regardless; we set it
+  // here too so the stored row is consistent.
+  const budgetEnforced = projectId
+    ? true
+    : typeof body?.budget_enforced === 'boolean'
+      ? body.budget_enforced
+      : false
+  const rpmLimit = intOrNull(body?.rpm_limit)
+  const tpmLimit = intOrNull(body?.tpm_limit)
 
   if (!name) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })
@@ -65,6 +77,15 @@ export async function POST(request) {
   if (monthlyBudgetUsd != null && (isNaN(monthlyBudgetUsd) || monthlyBudgetUsd < 0)) {
     return NextResponse.json(
       { error: 'monthly_budget_usd must be a non-negative number' },
+      { status: 400 },
+    )
+  }
+  // Fail closed: a project-scoped key must carry a non-empty model allowlist.
+  if (projectId && (!allowedAliases || allowedAliases.length === 0)) {
+    return NextResponse.json(
+      {
+        error: 'A project-scoped app must include a non-empty allowed_aliases list (fail closed).',
+      },
       { status: 400 },
     )
   }
@@ -84,11 +105,13 @@ export async function POST(request) {
   const inserted = await queryOne(
     `INSERT INTO apps (
        workspace_id, name, token_hash, default_alias, monthly_budget_usd,
-       enabled, allowed_aliases, fallback_allowed
+       enabled, allowed_aliases, fallback_allowed, project_id, rpm_limit,
+       tpm_limit, budget_enforced
      )
-     VALUES ($1, $2, $3, $4, $5, true, $6, $7)
+     VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9, $10, $11)
      RETURNING id, name, default_alias, monthly_budget_usd, enabled,
-       allowed_aliases, fallback_allowed, created_at, last_used_at`,
+       allowed_aliases, fallback_allowed, project_id, rpm_limit, tpm_limit,
+       budget_enforced, created_at, last_used_at`,
     [
       WORKSPACE_ID,
       name,
@@ -97,8 +120,18 @@ export async function POST(request) {
       monthlyBudgetUsd,
       allowedAliases,
       fallbackAllowed,
+      projectId,
+      rpmLimit,
+      tpmLimit,
+      budgetEnforced,
     ],
   )
 
   return NextResponse.json({ app: inserted, plaintext_token: token }, { status: 201 })
+}
+
+function intOrNull(v) {
+  if (v == null || v === '') return null
+  const n = Number(v)
+  return isNaN(n) ? null : Math.floor(n)
 }

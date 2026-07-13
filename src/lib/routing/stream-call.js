@@ -7,6 +7,7 @@
 import { resolveAlias } from '@/lib/routing/resolve-alias'
 import { streamAnthropicViaApiKey } from '@/lib/providers/anthropic-api'
 import { logCall } from '@/lib/logging'
+import { computeCostUsd } from '@/lib/routing/cost'
 import { randomUUID } from 'node:crypto'
 import { enforceAppPolicy, policySnapshot, validateAliasChainPolicy } from '@/lib/routing/policy'
 
@@ -21,7 +22,7 @@ async function pickStreamableEntry({ aliasName, app, correlationId }) {
     workspaceId: WORKSPACE_ID,
     aliasName,
   })
-  validateAliasChainPolicy({ alias, providers })
+  validateAliasChainPolicy({ alias, providers, app })
   await enforceAppPolicy({ app, alias, workspaceId: WORKSPACE_ID, requestedAlias: aliasName })
   const providerById = new Map(providers.map((p) => [p.id, p]))
   for (let i = 0; i < alias.fallback_chain.length; i++) {
@@ -74,10 +75,12 @@ export async function* streamChatCompletionsOpenAI({
   let errored = null
 
   try {
+    const maxTokens = alias.max_output_tokens != null ? Number(alias.max_output_tokens) : undefined
     for await (const evt of streamAnthropicViaApiKey({
       providerId: provider.id,
       messages,
       model: entry.model,
+      ...(maxTokens != null ? { maxTokens } : {}),
       abortSignal,
     })) {
       if (evt.event === 'message_start' && evt.message) {
@@ -111,6 +114,15 @@ export async function* streamChatCompletionsOpenAI({
     yield `data: ${errPayload}\n\n`
     yield 'data: [DONE]\n\n'
   } finally {
+    const respTokens = outputTokens ?? (totalContent ? Math.ceil(totalContent.length / 4) : null)
+    // Price by entry.model (what we resolved), not the echoed resolvedModel.
+    const { costUsd } = errored
+      ? { costUsd: null }
+      : await computeCostUsd({
+          model: entry.model,
+          requestTokens: inputTokens,
+          responseTokens: respTokens,
+        })
     await logCall({
       workspaceId: WORKSPACE_ID,
       appId: app?.id ?? null,
@@ -119,7 +131,8 @@ export async function* streamChatCompletionsOpenAI({
       model: resolvedModel,
       authMethod: provider.auth_type,
       requestTokens: inputTokens,
-      responseTokens: outputTokens ?? (totalContent ? Math.ceil(totalContent.length / 4) : null),
+      responseTokens: respTokens,
+      costUsd,
       latencyMs: Date.now() - startedAt,
       status: errored ? 500 : 200,
       error: errored ? errored.message?.slice(0, 1000) : null,
@@ -177,12 +190,17 @@ export async function* streamMessagesAnthropic({
     // streamAnthropicViaApiKey accepts our OpenAI-style messages, so convert
     // the system + messages back into something it understands.
     const merged = system ? [{ role: 'system', content: system }, ...messages] : messages
+    // Clamp output tokens to the alias ceiling when set (bounds sandbox overshoot).
+    const effectiveMaxTokens =
+      alias.max_output_tokens != null && maxTokens != null
+        ? Math.min(Number(maxTokens), Number(alias.max_output_tokens))
+        : maxTokens
 
     for await (const evt of streamAnthropicViaApiKey({
       providerId: provider.id,
       messages: merged,
       model: entry.model,
-      maxTokens,
+      maxTokens: effectiveMaxTokens,
       abortSignal,
     })) {
       if (evt.event === 'message_start' && evt.message) {
@@ -199,6 +217,13 @@ export async function* streamMessagesAnthropic({
     errored = err
     yield `event: error\ndata: ${JSON.stringify({ type: 'error', error: { message: err.message } })}\n\n`
   } finally {
+    const { costUsd } = errored
+      ? { costUsd: null }
+      : await computeCostUsd({
+          model: entry.model,
+          requestTokens: inputTokens,
+          responseTokens: outputTokens,
+        })
     await logCall({
       workspaceId: WORKSPACE_ID,
       appId: app?.id ?? null,
@@ -208,6 +233,7 @@ export async function* streamMessagesAnthropic({
       authMethod: provider.auth_type,
       requestTokens: inputTokens,
       responseTokens: outputTokens,
+      costUsd,
       latencyMs: Date.now() - startedAt,
       status: errored ? 500 : 200,
       error: errored ? errored.message?.slice(0, 1000) : null,

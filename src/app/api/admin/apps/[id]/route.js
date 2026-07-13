@@ -76,19 +76,70 @@ export async function PATCH(request, { params }) {
     updates.push(`fallback_allowed = $${p++}`)
     args.push(body.fallback_allowed)
   }
+  if (typeof body.budget_enforced === 'boolean') {
+    updates.push(`budget_enforced = $${p++}`)
+    args.push(body.budget_enforced)
+  }
+  if (body.project_id === null || body.project_id === '') {
+    updates.push(`project_id = NULL`)
+  } else if (typeof body.project_id === 'string') {
+    updates.push(`project_id = $${p++}`)
+    args.push(body.project_id.trim())
+  }
+  if ('rpm_limit' in body) {
+    if (body.rpm_limit === null || body.rpm_limit === '') {
+      updates.push(`rpm_limit = NULL`)
+    } else {
+      const n = Number(body.rpm_limit)
+      if (!isNaN(n) && n >= 0) {
+        updates.push(`rpm_limit = $${p++}`)
+        args.push(Math.floor(n))
+      }
+    }
+  }
+  if ('tpm_limit' in body) {
+    if (body.tpm_limit === null || body.tpm_limit === '') {
+      updates.push(`tpm_limit = NULL`)
+    } else {
+      const n = Number(body.tpm_limit)
+      if (!isNaN(n) && n >= 0) {
+        updates.push(`tpm_limit = $${p++}`)
+        args.push(Math.floor(n))
+      }
+    }
+  }
   if (updates.length === 0) {
     return NextResponse.json({ error: 'No fields to update.' }, { status: 400 })
   }
 
   args.push(id, WORKSPACE_ID)
-  const row = (
-    await query(
-      `UPDATE apps SET ${updates.join(', ')} WHERE id = $${p++} AND workspace_id = $${p}
+  let row
+  try {
+    row = (
+      await query(
+        `UPDATE apps SET ${updates.join(', ')} WHERE id = $${p++} AND workspace_id = $${p}
      RETURNING id, name, default_alias, monthly_budget_usd, enabled,
-       allowed_aliases, fallback_allowed, created_at, last_used_at`,
-      args,
-    )
-  )[0]
+       allowed_aliases, fallback_allowed, project_id, rpm_limit, tpm_limit,
+       budget_enforced, created_at, last_used_at`,
+        args,
+      )
+    )[0]
+  } catch (err) {
+    // e.g. the fail-closed allowlist CHECK on project-scoped apps.
+    if (err.code === '23514') {
+      return NextResponse.json(
+        {
+          error:
+            'A project-scoped app must keep a non-empty allowed_aliases list (fail closed). Clear the project first, or provide aliases.',
+        },
+        { status: 400 },
+      )
+    }
+    if (err.code === '23503') {
+      return NextResponse.json({ error: 'Referenced project does not exist.' }, { status: 400 })
+    }
+    throw err
+  }
   return NextResponse.json({ app: row })
 }
 

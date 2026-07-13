@@ -24,6 +24,14 @@ model_list:
       model: openai/gpt-5
       api_key: os.environ/OPENAI_API_KEY
 
+  # Codex CLI build model for the Aether sandbox lane. Kept in model_prices as
+  # UNPRICED until its real per-token price is confirmed; budgeted sandbox keys
+  # refuse an unpriced model rather than log it as free.
+  - model_name: openai-gpt-5-codex
+    litellm_params:
+      model: openai/gpt-5-codex
+      api_key: os.environ/OPENAI_API_KEY
+
   - model_name: openai-text-embedding-3-small
     litellm_params:
       model: openai/text-embedding-3-small

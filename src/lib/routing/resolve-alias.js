@@ -18,7 +18,8 @@ export async function resolveAlias({ workspaceId, aliasName }) {
     `SELECT id, name, description, fallback_chain,
             capability_type, fallback_allowed, local_only_eligible,
             retention_policy_notes, cost_latency_priority,
-            embedding_dimension, embedding_model_family, embedding_model_version
+            embedding_dimension, embedding_model_family, embedding_model_version,
+            sandbox_only, max_output_tokens
        FROM aliases
       WHERE workspace_id = $1 AND name = $2
       LIMIT 1`,

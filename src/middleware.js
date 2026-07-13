@@ -11,6 +11,7 @@ export const config = {
     '/providers/:path*',
     '/aliases/:path*',
     '/apps/:path*',
+    '/projects/:path*',
     '/usage/:path*',
     '/logs/:path*',
     '/settings/:path*',

@@ -27,6 +27,7 @@ export async function callViaLiteLLM({
   model,
   apiKey,
   baseUrl,
+  maxTokens,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 }) {
   const internalUrl = process.env.LITELLM_INTERNAL_URL
@@ -41,6 +42,7 @@ export async function callViaLiteLLM({
   const requestBody = { model, messages }
   if (apiKey) requestBody.api_key = apiKey // LiteLLM accepts per-request key override
   if (baseUrl) requestBody.api_base = baseUrl // LiteLLM accepts per-request base url override
+  if (maxTokens != null) requestBody.max_tokens = maxTokens // alias output-token ceiling
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)

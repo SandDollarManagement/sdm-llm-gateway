@@ -32,7 +32,7 @@ describe('routing policy', () => {
     })
   })
 
-  it('enforces per-app monthly budget caps', async () => {
+  it('enforces per-app monthly budget caps only when budget_enforced is set', async () => {
     queryOne.mockResolvedValueOnce({ spent: '10.00' })
 
     await expect(
@@ -44,11 +44,32 @@ describe('routing policy', () => {
           enabled: true,
           allowed_aliases: null,
           monthly_budget_usd: '10.00',
+          budget_enforced: true,
         },
-        alias: { name: 'doc-answer' },
+        alias: { name: 'doc-answer', fallback_chain: [] },
         requestedAlias: 'doc-answer',
       }),
-    ).rejects.toBeInstanceOf(GatewayPolicyError)
+    ).rejects.toMatchObject({ status: 429, code: 'monthly_budget_exceeded' })
+  })
+
+  it('does NOT enforce a budget when budget_enforced is false (no retroactive arming)', async () => {
+    // budget_enforced defaults false: an existing app with a cap set stays
+    // track-only until explicitly opted in. No queryOne spend lookup happens.
+    await expect(
+      enforceAppPolicy({
+        workspaceId: 'workspace-1',
+        app: {
+          id: 'app-legacy',
+          name: 'legacy-app',
+          enabled: true,
+          allowed_aliases: null,
+          monthly_budget_usd: '1.00',
+          budget_enforced: false,
+        },
+        alias: { name: 'default', fallback_chain: [] },
+        requestedAlias: 'default',
+      }),
+    ).resolves.toBe(true)
   })
 
   it('extracts and sanitizes an app-supplied correlation ID', () => {

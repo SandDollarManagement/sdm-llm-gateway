@@ -7,6 +7,7 @@ import {
   Plug,
   Layers,
   AppWindow,
+  Boxes,
   BarChart3,
   ScrollText,
   Settings as SettingsIcon,
@@ -17,11 +18,12 @@ import clsx from 'clsx'
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/providers', label: 'Providers', icon: Plug },
-  { href: '/aliases',   label: 'Aliases',   icon: Layers },
-  { href: '/apps',      label: 'Apps',      icon: AppWindow },
-  { href: '/usage',     label: 'Usage',     icon: BarChart3 },
-  { href: '/logs',      label: 'Logs',      icon: ScrollText },
-  { href: '/settings',  label: 'Settings',  icon: SettingsIcon },
+  { href: '/aliases', label: 'Aliases', icon: Layers },
+  { href: '/apps', label: 'Apps', icon: AppWindow },
+  { href: '/projects', label: 'Projects', icon: Boxes },
+  { href: '/usage', label: 'Usage', icon: BarChart3 },
+  { href: '/logs', label: 'Logs', icon: ScrollText },
+  { href: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 export default function AdminShell({ title, children }) {
@@ -37,7 +39,7 @@ export default function AdminShell({ title, children }) {
         </div>
 
         <nav className="flex-1 px-2 py-3 space-y-1">
-          {NAV.map(item => {
+          {NAV.map((item) => {
             const Icon = item.icon
             const active = pathname === item.href || pathname?.startsWith(`${item.href}/`)
             return (
@@ -48,7 +50,7 @@ export default function AdminShell({ title, children }) {
                   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
                   active
                     ? 'bg-surface-hover text-text-primary'
-                    : 'text-muted hover:text-text-primary hover:bg-surface-hover'
+                    : 'text-muted hover:text-text-primary hover:bg-surface-hover',
                 )}
               >
                 <Icon size={16} />
