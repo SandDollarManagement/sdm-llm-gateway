@@ -16,12 +16,31 @@ import GoogleProvider from 'next-auth/providers/google'
 //
 // The fallback is a MIGRATION SHIM so this deploy does not lose sign-in before
 // AUTH_GOOGLE_* is set in Coolify. Remove it once the new vars are confirmed live.
-const loginClientId = process.env.AUTH_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID
-const loginClientSecret = process.env.AUTH_GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET
+// Chosen AS A PAIR. Falling back on each independently would let a half-finished config
+// (AUTH_GOOGLE_CLIENT_ID set, AUTH_GOOGLE_CLIENT_SECRET not yet) build the new client id
+// with the old client secret — which Google rejects with an opaque invalid_client that
+// looks nothing like a missing env var.
+const hasSharedLogin = Boolean(
+  process.env.AUTH_GOOGLE_CLIENT_ID && process.env.AUTH_GOOGLE_CLIENT_SECRET,
+)
+const loginClientId = hasSharedLogin
+  ? process.env.AUTH_GOOGLE_CLIENT_ID
+  : process.env.GOOGLE_CLIENT_ID
+const loginClientSecret = hasSharedLogin
+  ? process.env.AUTH_GOOGLE_CLIENT_SECRET
+  : process.env.GOOGLE_CLIENT_SECRET
 
-if (!process.env.AUTH_GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID) {
+if (
+  !hasSharedLogin &&
+  (process.env.AUTH_GOOGLE_CLIENT_ID || process.env.AUTH_GOOGLE_CLIENT_SECRET)
+) {
   console.warn(
-    '[auth] Using the legacy GOOGLE_CLIENT_ID for login because AUTH_GOOGLE_CLIENT_ID is not set. ' +
+    '[auth] AUTH_GOOGLE_CLIENT_ID and AUTH_GOOGLE_CLIENT_SECRET must BOTH be set — only one is. ' +
+      'Ignoring the partial pair and falling back to the legacy credential.',
+  )
+} else if (!hasSharedLogin && process.env.GOOGLE_CLIENT_ID) {
+  console.warn(
+    '[auth] Using the legacy GOOGLE_CLIENT_ID for login because AUTH_GOOGLE_* is not set. ' +
       'Set AUTH_GOOGLE_CLIENT_ID and AUTH_GOOGLE_CLIENT_SECRET (SDM Login project) to move onto the shared credential.',
   )
 }
