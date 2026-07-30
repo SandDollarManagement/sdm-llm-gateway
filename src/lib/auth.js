@@ -8,11 +8,48 @@
 
 import GoogleProvider from 'next-auth/providers/google'
 
+// The LOGIN credential is AUTH_GOOGLE_*, shared across every Sand Dollar app: one OAuth
+// client, its own "SDM Login" Google Cloud project, identity scopes only. Fleet-wide,
+// GOOGLE_CLIENT_ID means an app's DATA-access credential (Gmail/Drive/Photos), so login
+// never reads that name — even here, where this app has no data credential, because one
+// name meaning two things is how the two got entangled in Ops-Hub.
+//
+// The fallback is a MIGRATION SHIM so this deploy does not lose sign-in before
+// AUTH_GOOGLE_* is set in Coolify. Remove it once the new vars are confirmed live.
+// Chosen AS A PAIR. Falling back on each independently would let a half-finished config
+// (AUTH_GOOGLE_CLIENT_ID set, AUTH_GOOGLE_CLIENT_SECRET not yet) build the new client id
+// with the old client secret — which Google rejects with an opaque invalid_client that
+// looks nothing like a missing env var.
+const hasSharedLogin = Boolean(
+  process.env.AUTH_GOOGLE_CLIENT_ID && process.env.AUTH_GOOGLE_CLIENT_SECRET,
+)
+const loginClientId = hasSharedLogin
+  ? process.env.AUTH_GOOGLE_CLIENT_ID
+  : process.env.GOOGLE_CLIENT_ID
+const loginClientSecret = hasSharedLogin
+  ? process.env.AUTH_GOOGLE_CLIENT_SECRET
+  : process.env.GOOGLE_CLIENT_SECRET
+
+if (
+  !hasSharedLogin &&
+  (process.env.AUTH_GOOGLE_CLIENT_ID || process.env.AUTH_GOOGLE_CLIENT_SECRET)
+) {
+  console.warn(
+    '[auth] AUTH_GOOGLE_CLIENT_ID and AUTH_GOOGLE_CLIENT_SECRET must BOTH be set — only one is. ' +
+      'Ignoring the partial pair and falling back to the legacy credential.',
+  )
+} else if (!hasSharedLogin && process.env.GOOGLE_CLIENT_ID) {
+  console.warn(
+    '[auth] Using the legacy GOOGLE_CLIENT_ID for login because AUTH_GOOGLE_* is not set. ' +
+      'Set AUTH_GOOGLE_CLIENT_ID and AUTH_GOOGLE_CLIENT_SECRET (SDM Login project) to move onto the shared credential.',
+  )
+}
+
 export const authOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      clientId: loginClientId,
+      clientSecret: loginClientSecret,
     }),
   ],
   session: { strategy: 'jwt' },
@@ -22,7 +59,7 @@ export const authOptions = {
       if (!user?.email) return false
       const allowed = (process.env.ADMIN_EMAILS || '')
         .split(',')
-        .map(e => e.trim().toLowerCase())
+        .map((e) => e.trim().toLowerCase())
         .filter(Boolean)
       if (allowed.length === 0) {
         console.warn('[auth] ADMIN_EMAILS is empty; denying all sign-ins.')
