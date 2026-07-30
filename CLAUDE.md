@@ -3,7 +3,9 @@
 > Operator: Preston Foreman
 > Project type: Standalone infrastructure service (not a business-facing app)
 > Status: Phase 0 complete; Phase 1 ready to start on the server with Claude Code
-> Last updated: 2026-05-29 (post-stack-correction)
+> Last updated: 2026-07-08 (uplift integration notes)
+
+**Local models for uplift (added 2026-07-08):** Wire Ollama as optional backend for cheap verification/sandbox runs in council workflows. Expose via gateway routing so agents can call `run_in_sandbox` with local model for lints/tests/edges (frontier for planner/critic). See sandbox-execution skill and AI_PLATFORM local routing section (short sketch added there). Detailed sketch below in providers.
 
 ---
 
@@ -31,6 +33,8 @@ already fill a role:
 Routing: new feature intent → FEATURE_SPECS · bug/gap/delta → KNOWN_GAPS ·
 something to build → PROJECT_STATE build queue · backlog idea → OPEN_FEATURES ·
 decision I owe → OPEN_DECISIONS · decision already made → DECISION_LOG.
+
+**Self-audit surfaces + "see template docs/VARIABLES.md" + 6-lens refs (2026-07-08 uplift, additive only):** Per global `~/.claude/CLAUDE.md`, every feature/fix/refactor ends with 6-lens self-audit (user-flow, nav, layout/UX, mobile, spec-vs-impl, empty/error-state). See template docs/VARIABLES.md for assumptions/edge-cases/failure-modes checklist (use in planner/critic output + empty/error lens + self-audit). Surface self-audit outputs + VARIABLES updates in PROJECT_STATE / relevant canonicals. Do not break existing map.
 
 ### System map — read-first doctrine
 
@@ -247,6 +251,7 @@ The `credentials` column is encrypted with AES-256-GCM using `GATEWAY_ENCRYPTION
 - Groq (fast inference for Llama/Qwen — not to be confused with Grok)
 - AWS Bedrock (if SDM ever runs on AWS)
 - Local Ollama for offline/dev fallback
+  **Quick sketch (low-prio, 2026-07-08):** Expose Ollama (or other local via LiteLLM) as a routing option behind the gateway for cheap/sandboxed runs. LiteLLM natively supports `ollama/llama3` etc. (add to litellm-config.yaml + provider row with base_url like http://host.docker.internal:11434 or internal service). Alias e.g. "local-fast" or "dev-cheap" with low-priority in chains. For verification: integrate `run_in_sandbox` (see `~/.grok/skills/sandbox-execution/SKILL.md`) on gateway side or consumer to empirically test local model outputs/latency without host risk. Keeps local as optional routing choice (not base); aligns to "local as option" + unified hub vision in AI_PLATFORM.md.
 
 ---
 
