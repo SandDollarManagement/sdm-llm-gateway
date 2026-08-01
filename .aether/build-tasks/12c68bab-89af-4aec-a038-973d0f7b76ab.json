@@ -1,0 +1,104 @@
+{
+  "v": 1,
+  "taskId": "12c68bab-89af-4aec-a038-973d0f7b76ab",
+  "projectId": "ca7ff311-3fad-49da-93b4-abeefdcdfcf6",
+  "projectPath": "/root/projects/sdm-llm-gateway",
+  "title": "im working on a project and it needs the details to incorporate the LLM Gateway into the p",
+  "agent": "codex",
+  "status": "done",
+  "createdAt": "2026-07-16T04:51:24.592Z",
+  "updatedAt": "2026-07-16T04:52:16.445Z",
+  "events": [
+    {
+      "seq": 0,
+      "ts": "2026-07-16T04:51:24.592Z",
+      "type": "note",
+      "agent": "codex",
+      "text": "Prompt: im working on a project and it needs the details to incorporate the LLM Gateway into the project. what information, what information do projects need about this project?"
+    },
+    {
+      "seq": 1,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 2,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 3,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 4,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 5,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 6,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 7,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 8,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 9,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 10,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 11,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "tool",
+      "agent": "codex",
+      "text": "Used Bash"
+    },
+    {
+      "seq": 12,
+      "ts": "2026-07-16T04:51:25.154Z",
+      "type": "note",
+      "agent": "codex",
+      "text": "I’ll treat this as governed-project context and pull the local project docs first, then I’ll summarize the integration contract projects need from this gateway.I found the gateway docs are local and compact. I’m reading the canonical files now so the answer is based on the actual contract, not guesses.The docs say Phase 1/2 is live and expose the gateway as an OpenAI-compatible `/v1` API, with per-app bearer tokens issued from the admin UI. I’m doing one quick code pass on the endpoint surface so I can separate “projects need this now” from “this is still a known gap.”The important nuance is that “model” means gateway alias for consumer projects. Projects should not bake in raw provider model names unless they are configuring the gateway itself.Projects integrating with `sdm-llm-gateway` need an **integration contract**, not the gateway internals.\n\n**Give Each Project This**\n1. **Gateway base URL**\n   `https://llm.sanddollarmanagementllc.com/v1`\n\n2. **Per-project token**\n   Issued from the gateway Admin UI under **Apps**.\n\n   Consumer env vars:\n\n   ```bash\n   SDM_GATEWAY_URL=https://llm.sanddollarmanagementllc.com/v1\n   SDM_GATEWAY_TOKEN=<app-specific-token>\n   ```\n\n3. **Auth format**\n   OpenAI-style:\n\n   ```http\n   Authorization: Bearer <SDM_GATEWAY_TOKEN>\n   ```\n\n   Anthropic-style clients may also use:\n\n   ```http\n   x-api-key: <SDM_GATEWAY_TOKEN>\n   ```\n\n4. **Use aliases, not provider model names**\n   Projects should send gateway aliases in the `model` field.\n\n   Main aliases:\n\n   - `default` — balanced general use\n   - `reasoning` — harder reasoning / long context\n   - `fast` — cheaper, high-volume work\n   - `vision` — image understanding\n   - `bulk-classify` — cheap classification\n   - `doc-answer`\n   - `doc-summarize`\n   - `doc-rerank`\n   - `doc-embed`\n   - `vision-ocr`\n   - `fast-classify`\n   - `local-private`\n\n5. **OpenAI-compatible chat example**\n\n   ```js\n   import OpenAI from 'openai'\n\n   const llm = new OpenAI({\n     apiKey: process.env.SDM_GATEWAY_TOKEN,\n     baseURL: process.env.SDM_GATEWAY_URL,\n   })\n\n   const response = await llm.chat.completions.create({\n     model: 'default',\n     messages: [{ role: 'user', content: 'Hello' }],\n   })\n   ```\n\n6. **Embeddings**\n   Use:\n\n   ```js\n   model: 'doc-embed'\n   ```\n\n   against:\n\n   ```text\n   /v1/embeddings\n   ```\n\n7. **Anthropic-compatible endpoint**\n   Apps already using Anthropic request shape can call:\n\n   ```text\n   /v1/messages\n   ```\n\n   with the same rule: `model` is a gateway alias.\n\n8. **Important current limitation**\n   Tool-call and streaming passthrough is still a known gap. Normal non-streaming chat and embeddings are the safer integration path right now. Codex/Claude-style tool-using CLI traffic should wait for the `G-001` follow-on.\n\n9. **Ownership rule**\n   The consumer project owns which alias each agent uses. The gateway owns how that alias routes to Anthropic/OpenAI/Gemini/etc.\n\n10. **Operational expectations**\n   The gateway logs usage, provider, latency, token/cost metadata, app identity, and errors. It does **not** store raw prompt/response bodies by default.\n\n**Short Version For Other Projects**\n“Replace direct provider clients with an OpenAI-compatible client pointed at `SDM_GATEWAY_URL`. Use `SDM_GATEWAY_TOKEN` as the API key. Send gateway aliases like `default`, `fast`, `vision`, or `doc-embed` as `model`. Do not hardcode provider model names in the app.”\n\nCHANGED: none  \nVERIFIED: read gateway canonical docs and endpoint/auth code  \nRISK: low for standard non-streaming integrations; medium for streaming/tool-call clients  \nNEEDS CLAUDE: no  \nNEEDS OPERATOR: no"
+    }
+  ]
+}

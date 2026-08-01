@@ -28,7 +28,7 @@ async function load() {
               GROUP BY 1
            ) c ON c.day = d.day
           ORDER BY d.day`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
       query(
         `SELECT COALESCE(p.name, 'unknown') AS name, COUNT(*)::int AS calls
@@ -37,7 +37,7 @@ async function load() {
           WHERE cl.workspace_id = $1 AND cl.created_at >= date_trunc('day', now())
           GROUP BY p.name
           ORDER BY calls DESC`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
       query(
         `SELECT COALESCE(alias, 'unknown') AS name, COUNT(*)::int AS calls
@@ -45,7 +45,7 @@ async function load() {
           WHERE workspace_id = $1 AND created_at >= date_trunc('day', now())
           GROUP BY alias
           ORDER BY calls DESC`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
       query(
         `SELECT
@@ -55,7 +55,7 @@ async function load() {
            COUNT(*) FILTER (WHERE created_at >= date_trunc('month', now()) AND status <> 200)::int AS month_errors
            FROM call_logs
           WHERE workspace_id = $1`,
-        [WORKSPACE_ID]
+        [WORKSPACE_ID],
       ),
     ])
     return {
@@ -82,7 +82,6 @@ export default async function UsagePage() {
   return (
     <AdminShell title="Usage">
       <div className="space-y-6">
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard
             icon={<Activity size={16} />}
@@ -104,7 +103,6 @@ export default async function UsagePage() {
         </div>
 
         <UsageClient daily={daily} byProvider={byProvider} byAlias={byAlias} />
-
       </div>
     </AdminShell>
   )
@@ -117,7 +115,7 @@ function StatCard({ icon, label, value, sub }) {
         {icon}
         <span>{label}</span>
       </div>
-      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-2xl font-semibold">{value}</div>
       {sub && <div className="text-xs text-muted mt-1">{sub}</div>}
     </div>
   )

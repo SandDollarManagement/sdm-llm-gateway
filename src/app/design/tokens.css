@@ -1,0 +1,149 @@
+/* ============================================================================
+   SDM Design System — canonical token layer.
+   DESIGN_SYSTEM_VERSION: 1.0.1
+
+   This file is the SOURCE OF TRUTH for how Preston's internal apps look.
+   It is copied or imported by each internal app; it is never forked and edited
+   in place. A change here is a change everywhere — that is the point.
+
+   Light is the default. Dark is switched by html[data-theme="dark"].
+   All color is expressed as custom properties, so one attribute swap re-themes
+   the entire app with no per-component dark-mode code.
+
+   Provenance: extracted from the verified-live Gmail-Drive-Manager token layer
+   (dashboard/app/globals.css, accent #2f6fed, Inter) on 2026-07-31, which its own
+   DESIGN_SYSTEM.md declared "intended to become the reference other SDM apps
+   inherit once finalized." This is that finalization.
+   ========================================================================== */
+
+:root,
+html[data-theme='light'] {
+  /* --- Type families ------------------------------------------------------ */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* --- Type scale --------------------------------------------------------- */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --tracking-tight: -0.02em;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* --- Spacing scale (8px base) ------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* --- Radius ------------------------------------------------------------- */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  /* --- Touch target (mobile rule 7) -------------------------------------- */
+  --tap-min: 44px;
+
+  /* --- Color — light ------------------------------------------------------ */
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f0f1f4;
+  --surface-3: #e8eaee;
+  --text: #1a1c1f;
+  --text-muted: #5e646c;
+  --text-faint: #8a9098;
+  --border: rgba(18, 20, 24, 0.08);
+  --border-strong: rgba(18, 20, 24, 0.14);
+  --accent: #2f6fed;
+  --accent-hover: #2a62d4;
+  --accent-weak: rgba(47, 111, 237, 0.1);
+  --accent-on: #ffffff;
+  --success: #1d8a57;
+  --success-weak: rgba(29, 138, 87, 0.12);
+  --warning: #b07503;
+  --warning-weak: rgba(176, 117, 3, 0.12);
+  --danger: #c5403a;
+  --danger-weak: rgba(197, 64, 58, 0.12);
+
+  /* --- Elevation ---------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(16, 18, 22, 0.04);
+  --shadow-md: 0 1px 2px rgba(16, 18, 22, 0.04), 0 8px 24px rgba(16, 18, 22, 0.06);
+}
+
+html[data-theme='dark'] {
+  --bg: #0b0c0e;
+  --surface: #151719;
+  --surface-2: #1d2023;
+  --surface-3: #25282d;
+  --text: #f2f3f5;
+  --text-muted: #9aa1a9;
+  --text-faint: #6b727a;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --accent: #4d8dff;
+  --accent-hover: #6a9fff;
+  --accent-weak: rgba(77, 141, 255, 0.14);
+  --accent-on: #ffffff;
+  --success: #34b87d;
+  --success-weak: rgba(52, 184, 125, 0.16);
+  --warning: #e0a23a;
+  --warning-weak: rgba(224, 162, 58, 0.16);
+  --danger: #e0564f;
+  --danger-weak: rgba(224, 86, 79, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* ============================================================================
+   Base — every app applies these.
+   ========================================================================== */
+
+html,
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--accent-weak);
+  color: var(--text);
+}
+
+/* ============================================================================
+   Mobile guardrails — the seatbelts for the hard rules in DESIGN_SYSTEM.md.
+   These are NOT the fix; they stop a regression being invisible. The causes
+   (max-content grid tracks, non-wrapping flex rows) must still be eliminated.
+   ========================================================================== */
+
+html,
+body {
+  /* clip, not hidden — `hidden` silently breaks sticky positioning */
+  overflow-x: clip;
+}
+
+/* Any grid/flex child holding long text must be allowed to shrink below its
+   max-content width, or a single long URL pushes the whole column off-screen. */
+*,
+*::before,
+*::after {
+  min-width: 0;
+}

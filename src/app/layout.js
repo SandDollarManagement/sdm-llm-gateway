@@ -11,11 +11,9 @@ export const metadata = {
 export default async function RootLayout({ children }) {
   const session = await getServerSession(authOptions)
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark">
       <body className="bg-surface-primary text-text-primary antialiased">
-        <SessionProvider session={session}>
-          {children}
-        </SessionProvider>
+        <SessionProvider session={session}>{children}</SessionProvider>
       </body>
     </html>
   )

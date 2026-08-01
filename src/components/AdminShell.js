@@ -74,7 +74,7 @@ export default function AdminShell({ title, children }) {
 
       <main className="flex-1 overflow-y-auto">
         <header className="px-8 py-6 border-b border-border">
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         </header>
         <div className="px-8 py-6">{children}</div>
       </main>
