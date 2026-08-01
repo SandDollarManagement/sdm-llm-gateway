@@ -25,38 +25,38 @@ Token contract to import: `/root/projects/design-system/tokens.css`
 
 ## Color tokens
 
-| Token             | Light                | Dark                  | Use                                |
-| ----------------- | -------------------- | --------------------- | ---------------------------------- |
-| `--bg`            | #f5f6f8              | #0b0c0e               | Page background                    |
-| `--surface`       | #ffffff              | #151719               | Cards, panels                      |
-| `--surface-2`     | #f0f1f4              | #1d2023               | Insets, metric tiles, active nav   |
-| `--surface-3`     | #e8eaee              | #25282d               | Hover states                       |
-| `--text`          | #1a1c1f              | #f2f3f5               | Primary text                       |
-| `--text-muted`    | #5e646c              | #9aa1a9               | Secondary text, labels             |
-| `--text-faint`    | #8a9098              | #6b727a               | Hints, timestamps                  |
-| `--border`        | rgba(18,20,24,.08)   | rgba(255,255,255,.09) | Hairline separators                |
-| `--border-strong` | rgba(18,20,24,.14)   | rgba(255,255,255,.15) | Emphasis / hover borders           |
-| `--accent`        | #2f6fed              | #4d8dff               | The single accent. Used sparingly. |
-| `--accent-hover`  | #2a62d4              | #6a9fff               | Accent hover                       |
-| `--accent-weak`   | rgba(47,111,237,.10) | rgba(77,141,255,.14)  | Tinted accent backgrounds (badges) |
-| `--accent-on`     | #ffffff              | #ffffff               | Text/icons on accent fills         |
-| `--success`       | #1d8a57              | #34b87d               | Running, healthy, approved         |
-| `--warning`       | #b07503              | #e0a23a               | Pending, dry-run, attention        |
-| `--danger`        | #c5403a              | #e0564f               | Errors, failures, destructive      |
+| Token           | Light                 | Dark                   | Use                                |
+|-----------------|-----------------------|------------------------|------------------------------------|
+| `--bg`          | #f5f6f8               | #0b0c0e                | Page background                    |
+| `--surface`     | #ffffff               | #151719                | Cards, panels                      |
+| `--surface-2`   | #f0f1f4               | #1d2023                | Insets, metric tiles, active nav   |
+| `--surface-3`   | #e8eaee               | #25282d                | Hover states                       |
+| `--text`        | #1a1c1f               | #f2f3f5                | Primary text                       |
+| `--text-muted`  | #5e646c               | #9aa1a9                | Secondary text, labels             |
+| `--text-faint`  | #8a9098               | #6b727a                | Hints, timestamps                  |
+| `--border`      | rgba(18,20,24,.08)    | rgba(255,255,255,.09)  | Hairline separators                |
+| `--border-strong` | rgba(18,20,24,.14)  | rgba(255,255,255,.15)  | Emphasis / hover borders           |
+| `--accent`      | #2f6fed               | #4d8dff                | The single accent. Used sparingly. |
+| `--accent-hover`| #2a62d4               | #6a9fff                | Accent hover                       |
+| `--accent-weak` | rgba(47,111,237,.10)  | rgba(77,141,255,.14)   | Tinted accent backgrounds (badges) |
+| `--accent-on`   | #ffffff               | #ffffff                | Text/icons on accent fills         |
+| `--success`     | #1d8a57               | #34b87d                | Running, healthy, approved         |
+| `--warning`     | #b07503               | #e0a23a                | Pending, dry-run, attention        |
+| `--danger`      | #c5403a               | #e0564f                | Errors, failures, destructive      |
 
 Each semantic color has a `-weak` tinted-background partner.
 
 ## Typography
 
-| Token         | Value | Usage                         |
-| ------------- | ----- | ----------------------------- |
-| `--text-xs`   | 12px  | Labels, overlines, timestamps |
-| `--text-sm`   | 13px  | Secondary body, row meta      |
-| `--text-base` | 14px  | Body default                  |
-| `--text-md`   | 15px  | Emphasized body               |
-| `--text-lg`   | 18px  | Subsection headings           |
-| `--text-xl`   | 22px  | Page title                    |
-| `--text-2xl`  | 28px  | Metric values                 |
+| Token         | Value | Usage                          |
+|---------------|-------|--------------------------------|
+| `--text-xs`   | 12px  | Labels, overlines, timestamps  |
+| `--text-sm`   | 13px  | Secondary body, row meta       |
+| `--text-base` | 14px  | Body default                   |
+| `--text-md`   | 15px  | Emphasized body                |
+| `--text-lg`   | 18px  | Subsection headings            |
+| `--text-xl`   | 22px  | Page title                     |
+| `--text-2xl`  | 28px  | Metric values                  |
 
 Weights: 400 regular, 500 medium, 600 semibold. **Never 700+** — it reads heavy.
 Headings and metric values use `--tracking-tight` (-0.02em).
@@ -120,13 +120,11 @@ grid with implicit tracks sizes to its widest child's max-content (a long URL or
 path), pushing the column past the viewport. Pin every stacked grid:
 
 ```css
-.some-stacked-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
+.some-stacked-grid { grid-template-columns: minmax(0, 1fr); }
 ```
 
 **B. The global guard is a seatbelt, not a fix.** `tokens.css` ships
-`overflow-x: clip` and `min-width: 0`. Those stop the damage being _visible_; they do
+`overflow-x: clip` and `min-width: 0`. Those stop the damage being *visible*; they do
 not remove the cause. Always eliminate A and C as well, or content is silently clipped
 — which is a silent failure, and those always surface.
 
@@ -134,11 +132,7 @@ not remove the cause. Always eliminate A and C as well, or content is silently c
 whitespace between them (JSX strips the newline) cannot line-break and will overflow:
 
 ```css
-.button-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+.button-row { display: flex; flex-wrap: wrap; gap: 8px; }
 ```
 
 On a phone, prefer stacking full-width: `flex-direction: column; align-items: stretch;`
