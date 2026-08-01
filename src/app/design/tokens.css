@@ -17,7 +17,7 @@
    ========================================================================== */
 
 :root,
-html[data-theme='light'] {
+html[data-theme="light"] {
   /* --- Type families ------------------------------------------------------ */
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
@@ -70,7 +70,7 @@ html[data-theme='light'] {
   --border-strong: rgba(18, 20, 24, 0.14);
   --accent: #2f6fed;
   --accent-hover: #2a62d4;
-  --accent-weak: rgba(47, 111, 237, 0.1);
+  --accent-weak: rgba(47, 111, 237, 0.10);
   --accent-on: #ffffff;
   --success: #1d8a57;
   --success-weak: rgba(29, 138, 87, 0.12);
@@ -84,7 +84,7 @@ html[data-theme='light'] {
   --shadow-md: 0 1px 2px rgba(16, 18, 22, 0.04), 0 8px 24px rgba(16, 18, 22, 0.06);
 }
 
-html[data-theme='dark'] {
+html[data-theme="dark"] {
   --bg: #0b0c0e;
   --surface: #151719;
   --surface-2: #1d2023;
@@ -105,8 +105,8 @@ html[data-theme='dark'] {
   --danger: #e0564f;
   --danger-weak: rgba(224, 86, 79, 0.16);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.30), 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 
 /* ============================================================================
