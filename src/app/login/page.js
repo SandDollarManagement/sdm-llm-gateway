@@ -58,7 +58,13 @@ function LoginContent() {
             {loading ? (
               <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
             ) : (
-              <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                xmlns="http://www.w3.org/2000/svg"
+                data-design-exempt="third-party-logo"
+              >
                 <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
                   <path
                     fill="#4285F4"
