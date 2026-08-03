@@ -6,6 +6,8 @@ Operator-owned setup and policy decisions live here.
 
 ### OI-001 · Turn on Google sign-in for LLM Gateway
 
+- **Added:** 2026-08-01
+
 - **Why it matters:** The code is deployed and waiting. Until these are set, the Continue with Google button does not appear and LLM Gateway still needs its password. Once set, your Google account signs you in and there is no password to forget.
 - **Where:** Coolify, in your browser — the LLM Gateway application, Environment Variables tab. Do this after you have the two values from the SDM Login Google project.
 - **Time:** 3 minutes
