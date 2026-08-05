@@ -239,3 +239,70 @@ Generated: 2026-07-05T00:00:00Z
 Generator: meta-orchestrator subagent (.claude/agents/meta-orchestrator.md)
 Last commit considered: ecf128a
 Refresh cadence: manual before any audit or build
+
+<!-- BEGIN GENERATED: system-map -->
+
+_Generated from the code by `/root/projects/projects-dashboard/scripts/system-map-gen.mjs` on 2026-08-05._
+_Everything between these markers is regenerated. Write your own notes OUTSIDE them._
+
+## What this project is made of
+
+Top-level: `docs`, `e2e`, `migrations`, `public`, `scripts`, `src`
+
+## Its place in the portfolio
+
+- Priority: **unranked**
+- Depends on: _nothing else, by evidence_
+- Used by: cc-web-ui, design-system
+
+## Routes (12)
+
+- `/aliases`
+- `/api/health`
+- `/apps`
+- `/dashboard`
+- `/login`
+- `/logs`
+- `/projects`
+- `/providers`
+- `/settings`
+- `/usage`
+- `/v1/embeddings`
+- `/v1/messages`
+
+## Services it runs
+
+- `gateway-web`
+
+## Entry points (8)
+
+- `scripts/aether-kill.js`
+- `scripts/aether-seed.js`
+- `scripts/docker-entrypoint.sh`
+- `scripts/migrate.js`
+- `scripts/mint-sandbox-key.js`
+- `scripts/seed-phase2a.js`
+- `scripts/seed-phase2b.js`
+- `scripts/seed-phase2c.js`
+
+## Database files (9)
+
+- `migrations/001_workspaces.sql`
+- `migrations/002_providers.sql`
+- `migrations/003_aliases.sql`
+- `migrations/004_apps.sql`
+- `migrations/005_call_logs.sql`
+- `migrations/006_monthly_usage.sql`
+- `migrations/007_seed.sql`
+- `migrations/008_gateway_alias_policy.sql`
+- `migrations/009_aether_sandbox.sql`
+
+## Environment variables it reads (15)
+
+`ADMIN_EMAILS`, `ANTHROPIC_API_KEY`, `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET`, `BASE_URL`, `CLAUDE_BIN`, `DATABASE_SSL`, `DATABASE_URL`, `GATEWAY_ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LITELLM_INTERNAL_URL`, `LITELLM_MASTER_KEY`, `NEXT_PUBLIC_APP_VERSION`, `PORT`
+
+## How it proves itself
+
+8 test file(s).
+
+<!-- END GENERATED: system-map -->
