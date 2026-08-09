@@ -1,18 +1,45 @@
 <!-- GENERATED FILE — DO NOT EDIT BY HAND.
-     Source: /root/projects/design-system/ (DESIGN_SYSTEM.md + tokens.css)
+     Source: /root/projects/design-system/ (DESIGN_SYSTEM.md + themes/sdm-house/)
      Regenerate: node /root/projects/design-system/scripts/design-md-gen.mjs --project sdm-llm-gateway
      Edits here are overwritten and do not change how anything looks. -->
 
 # design.md — sdm-llm-gateway
 
-**DESIGN_SYSTEM_VERSION: 1.0.1**
+**DESIGN_SYSTEM_VERSION: 1.1.0**
+**THEME: sdm-house — SDM House**
 
 How this app must look. It is not this project's own taste — it is the shared
-house style for Preston's internal tools, so they read as one family.
+house system, so everything Preston ships reads as one company.
+
+## This project's theme: SDM House
+
+> Dense, quiet, and built to be read all day.
+
+Calm, neutral, information-first. Gets out of the way of the data. Nothing decorative competes with what you came to read.
+
+- **Import this token file:** `/root/projects/design-system/themes/sdm-house/tokens.css`
+- **Default mode:** light
+- **Typefaces:** Inter, JetBrains Mono — these must be **self-hosted and actually loaded**, not
+  merely named. Naming a family loads nothing; the page then renders a fallback and
+  every other check still passes. Copy the woff2 files from
+  `/root/projects/design-system/site/fonts/`.
+
+### What this theme allows that others do not
+
+| Rule | This theme |
+|---|---|
+| Gradients | Not allowed |
+| A second accent colour | Not allowed — there is one accent |
+| Separate display typeface | No — one family throughout |
+| Shadow style | soft |
+
+The **mobile hard rules and the legibility floor below bind every theme.** Those are
+quality, not identity, and no look gets to switch them off.
 
 Full system, component recipes and rationale:
 `/root/projects/design-system/DESIGN_SYSTEM.md`
-Token contract to import: `/root/projects/design-system/tokens.css`
+All available themes: `/root/projects/design-system/themes/` ·
+browse them at the preview gallery.
 
 ## Principles
 
@@ -156,5 +183,8 @@ Reading a diff does not prove a page fits. So:
 
 1. Do not invent a token. If you need a value that is not here, the system needs
    changing — edit `design-system/`, bump the version, regenerate. Never fork.
-2. Run `/design` for a review before you open a PR on visual work.
-3. Render every screen at 390px and look at it. Reading the diff does not count.
+2. **Do not hand-edit this project's colours to "try a different look."** Change the
+   project's entry in `design-system/internal-apps.json` → `themes` and regenerate.
+   A theme swap is one line; a hand-edit is a fork that drifts.
+3. Run `/design` for a review before you open a PR on visual work.
+4. Render every screen at 390px and look at it. Reading the diff does not count.
