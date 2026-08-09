@@ -1,6 +1,6 @@
 /* ============================================================================
    SDM Design System — canonical token layer.
-   DESIGN_SYSTEM_VERSION: 1.0.1
+   DESIGN_SYSTEM_VERSION: 1.1.0
 
    This file is the SOURCE OF TRUTH for how Preston's internal apps look.
    It is copied or imported by each internal app; it is never forked and edited
@@ -72,9 +72,12 @@ html[data-theme="light"] {
   --accent-hover: #2a62d4;
   --accent-weak: rgba(47, 111, 237, 0.10);
   --accent-on: #ffffff;
-  --success: #1d8a57;
+  /* success/warning darkened at 1.1.0: as TEXT on --surface the previous values
+     measured 4.35:1 and 3.89:1, both under the 4.5:1 floor the system requires of
+     everyone else. The -weak fills keep the original hues. */
+  --success: #177a4c;
   --success-weak: rgba(29, 138, 87, 0.12);
-  --warning: #b07503;
+  --warning: #8f5f02;
   --warning-weak: rgba(176, 117, 3, 0.12);
   --danger: #c5403a;
   --danger-weak: rgba(197, 64, 58, 0.12);
@@ -97,7 +100,11 @@ html[data-theme="dark"] {
   --accent: #4d8dff;
   --accent-hover: #6a9fff;
   --accent-weak: rgba(77, 141, 255, 0.14);
-  --accent-on: #ffffff;
+  /* Ink, not white, at 1.1.0. Dark mode lightens --accent to #4d8dff so it reads as
+     link text on a dark surface; white on that fill measured 3.20:1, so every
+     dark-mode primary BUTTON LABEL was below the floor. Dark ink on the light fill
+     is 6.12:1 and is the correct pairing for a light accent. */
+  --accent-on: #0b0c0e;
   --success: #34b87d;
   --success-weak: rgba(52, 184, 125, 0.16);
   --warning: #e0a23a;

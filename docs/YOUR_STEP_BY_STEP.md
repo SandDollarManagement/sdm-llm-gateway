@@ -7,13 +7,13 @@
 
 **One thing for you to do.**
 
-## 1. Turn on Google sign-in for LLM Gateway _(OI-001)_
+## 1. Turn on Google sign-in for LLM Gateway *(OI-001)*
 
 **Why this matters:** The code is deployed and waiting. Until these are set, the Continue with Google button does not appear and LLM Gateway still needs its password. Once set, your Google account signs you in and there is no password to forget.
 
 **Where you do it:** Coolify, in your browser — the LLM Gateway application, Environment Variables tab. Do this after you have the two values from the SDM Login Google project.
 
-_3 minutes · cost: none_
+*3 minutes · cost: none*
 
 **1.** Open Coolify, pick the LLM Gateway application, then Environment Variables
 
