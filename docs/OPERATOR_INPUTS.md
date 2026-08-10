@@ -37,3 +37,17 @@ Operator-owned setup and policy decisions live here.
 **What you'll see:** A Continue with Google button above the email and password boxes. Clicking it takes you to Google, then straight into LLM Gateway with no password.
 
 **Done when:** http-ok: https://llm.sanddollarmanagementllc.com
+
+### OI-002 · Decide: should the gateway fall back to a paid provider, or fail loudly instead
+
+- **Added:** 2026-08-10
+- **Why it matters:** The gateway already tries your Claude subscription FIRST and only reaches a metered provider when that path fails. So the honest question is not on-or-off. Armed, an outage costs a few cents and everything keeps working. Failing loudly, you never spend a metered cent and an AI feature simply goes dark until the subscription path recovers. I traced all five apps wired to it and none is actively using it today, so this is a decision about the future rather than a fire.
+- **Where:** Just reply here in chat. Nothing to install, nothing to paste.
+
+**Steps**
+
+1. Reply ARM (keep the paid fallback, so things keep working during an outage) or FAIL-LOUD (never spend metered money, and accept a feature going dark instead)
+
+**What you'll see:** I record your answer and configure the gateway to match it. If you pick FAIL-LOUD I also make the failure visible rather than silent, so a dark feature does not look like a broken one.
+
+**Done when:** You have replied ARM or FAIL-LOUD
