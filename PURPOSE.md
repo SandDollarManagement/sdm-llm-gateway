@@ -27,7 +27,7 @@ _Source: README.md (opening description)_
 
 - **Priority:** unranked
 - **Depends on:** nothing, by evidence
-- **Used by:** no other project depends on it, by evidence
+- **Used by:** cc-web-ui, design-system
 
 _Source: .aether-ops/portfolio-graph.json (generated, evidence-only)_
 
