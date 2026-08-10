@@ -5,6 +5,18 @@ _Why this project exists. Read this before planning anything in it._
 _Write your own notes ABOVE or BELOW the generated block — anything outside the markers is
 never touched by the generator._
 
+## What must never break — CONFIRMED BY THE OPERATOR
+
+_Confirmed by Preston on 2026-08-10, after reviewing drafts written from the code._
+_This sits OUTSIDE the generated block on purpose: the generator rewrites everything between_
+_the markers below on every run, and his answer must survive that._
+
+- AI requests must keep reaching a working provider, switching over automatically when one is down or a key stops working.
+- The single encryption key that unlocks every stored AI-provider password must never be lost — without it, every connected provider has to be set up again by hand.
+
+_More than one, deliberately. He asked why he had to pick just one — he did not. The field
+_was named in the singular; that was a wording limit, not a real constraint._
+
 <!-- BEGIN GENERATED: purpose-brief -->
 
 _Drafted by `purpose-brief.js` from evidence in this repo. Every line below names where it
