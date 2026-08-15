@@ -1,0 +1,57 @@
+{
+  "project": "sdm-llm-gateway",
+  "_purpose": "Machine-readable capability + guardrail registry for this project. AGENTS.md points every tool (Codex/Grok) here, and the Aether six-look pre-flight reads it (EXISTS: reuse before inventing; UNDO: know what is irreversible). Keep it TRUTHFUL — unknown stays blank/false, never invented.",
+  "_generated": "2026-08-15 by AGENT-PLATFORM-GREATNESS-2026 gate 1. Every present:true below is backed by a file named in its notes. Anything unproven is false or \"needs data\" — correct it from real knowledge rather than trusting this to be complete.",
+  "external_surfaces": {
+    "database": {
+      "present": true,
+      "kind": "needs data",
+      "notes": "Detected from: migrations/, .env.example, package.json dependency. Engine and whether any table holds money/PII: needs data."
+    },
+    "gmail": {
+      "present": false,
+      "scopes": [],
+      "notes": ""
+    },
+    "google_drive": {
+      "present": false,
+      "scopes": [],
+      "notes": ""
+    },
+    "cron_or_scheduled": {
+      "present": true,
+      "jobs": [],
+      "notes": "Scheduling detected from: .github/workflows/. Individual jobs: needs data."
+    },
+    "auth": {
+      "present": true,
+      "notes": "Auth detected from: package.json dependency, .env.example. Who can sign in: needs data."
+    },
+    "payments": {
+      "present": false,
+      "notes": ""
+    },
+    "deploy": {
+      "present": true,
+      "notes": "Container/deploy config at Dockerfile. Where it deploys and who triggers it: needs data."
+    },
+    "other_mcp": []
+  },
+  "naming_conventions": {
+    "labels": "",
+    "folders": "",
+    "ids": "",
+    "_notes": "needs data — existing conventions to REUSE before inventing a new one. Not derivable from dependency scanning; fill in from the repo's own docs when someone next works here."
+  },
+  "forbidden_actions": [
+    "Do NOT send email, publish, charge, file, or delete/transform live rows without explicit operator approval.",
+    "Do NOT invent a number or value — missing data stays blank and flagged \"needs data\".",
+    "Project-specific forbidden actions: needs data."
+  ],
+  "release_gated_actions": [],
+  "sensitive_surfaces": {
+    "tables": [],
+    "_notes": "needs data — no money/tax signal detected, but absence of a signal is not proof. List sensitive tables here when known."
+  },
+  "reversibility_notes": "Code changes are reversible via git. This project HAS a datastore, so data operations may not be — a confirmed-restorable backup is required before any migration that deletes or transforms rows. It has deploy config, so a bad change can reach a running service. Specifics: needs data."
+}
