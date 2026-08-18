@@ -7,13 +7,13 @@
 
 **2 things for you to do,** in the order they were written down.
 
-## 1. Turn on Google sign-in for LLM Gateway _(OI-001)_
+## 1. Turn on Google sign-in for LLM Gateway *(OI-001)*
 
 **Why this matters:** The code is deployed and waiting. Until these are set, the Continue with Google button does not appear and LLM Gateway still needs its password. Once set, your Google account signs you in and there is no password to forget.
 
 **Where you do it:** Coolify, in your browser — the LLM Gateway application, Environment Variables tab. Do this after you have the two values from the SDM Login Google project.
 
-_3 minutes · cost: none_
+*3 minutes · cost: none*
 
 **1.** Open Coolify, pick the LLM Gateway application, then Environment Variables
 
@@ -47,7 +47,7 @@ https://llm.sanddollarmanagementllc.com/login
 
 **How we'll know it's done:** https://llm.sanddollarmanagementllc.com answers OK — this one clears itself off your list once that's true.
 
-## 2. Decide: should the gateway fall back to a paid provider, or fail loudly instead _(OI-002)_
+## 2. Decide: should the gateway fall back to a paid provider, or fail loudly instead *(OI-002)*
 
 **Why this matters:** The gateway already tries your Claude subscription FIRST and only reaches a metered provider when that path fails. So the honest question is not on-or-off. Armed, an outage costs a few cents and everything keeps working. Failing loudly, you never spend a metered cent and an AI feature simply goes dark until the subscription path recovers. I traced all five apps wired to it and none is actively using it today, so this is a decision about the future rather than a fire.
 
