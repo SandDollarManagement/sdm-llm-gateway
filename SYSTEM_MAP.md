@@ -242,7 +242,7 @@ Refresh cadence: manual before any audit or build
 
 <!-- BEGIN GENERATED: system-map -->
 
-_Generated from the code by `/root/projects/projects-dashboard/scripts/system-map-gen.mjs` on 2026-08-05._
+_Generated from the code by `/root/projects/projects-dashboard/scripts/system-map-gen.mjs` on 2026-08-19._
 _Everything between these markers is regenerated. Write your own notes OUTSIDE them._
 
 ## What this project is made of
@@ -255,9 +255,24 @@ Top-level: `docs`, `e2e`, `migrations`, `public`, `scripts`, `src`
 - Depends on: _nothing else, by evidence_
 - Used by: cc-web-ui, design-system
 
-## Routes (12)
+## Routes (28)
 
 - `/aliases`
+- `/api/admin/alerts`
+- `/api/admin/alerts/[id]`
+- `/api/admin/aliases`
+- `/api/admin/aliases/[id]`
+- `/api/admin/aliases/[id]/test`
+- `/api/admin/apps`
+- `/api/admin/apps/[id]`
+- `/api/admin/apps/[id]/rotate-token`
+- `/api/admin/logs`
+- `/api/admin/projects`
+- `/api/admin/projects/[id]`
+- `/api/admin/projects/[id]/keys`
+- `/api/admin/providers`
+- `/api/admin/providers/[id]`
+- `/api/auth/[...nextauth]`
 - `/api/health`
 - `/apps`
 - `/dashboard`
@@ -267,6 +282,7 @@ Top-level: `docs`, `e2e`, `migrations`, `public`, `scripts`, `src`
 - `/providers`
 - `/settings`
 - `/usage`
+- `/v1/chat/completions`
 - `/v1/embeddings`
 - `/v1/messages`
 
